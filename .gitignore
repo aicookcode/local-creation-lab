@@ -1,0 +1,10 @@
+program/runtime/
+models/*
+!models/README.md
+cache/
+projects/
+logs/
+user_data/
+maintenance/
+__pycache__/
+*.py[cod]

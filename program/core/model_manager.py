@@ -98,6 +98,12 @@ def _local_source(artifact):
 def _valid(artifact):
  path=_target(artifact['path'])
  if not path.is_file():return False
+ if artifact.get('generated'):
+  wav2lip=next((a for a in _manifest()['groups']['portrait']['artifacts'] if Path(a['path']).name=='wav2lip.pth'),None)
+  expected=str((wav2lip or {}).get('sha256','')).lower()
+  record=_load(path,{})
+  return (len(expected)==64 and isinstance(record,dict) and record.get('verified') is True
+          and record.get('expected')==expected and _valid(wav2lip))
  size=artifact.get('size')
  if isinstance(size,int) and path.stat().st_size!=size:return False
  digest=artifact.get('sha256')
@@ -155,8 +161,13 @@ def ensure(group,report=print):
    if artifact.get('generated'):
     target=_target(artifact['path']);target.parent.mkdir(parents=True,exist_ok=True)
     wav2lip=next((a for a in info.get('artifacts',[]) if Path(a['path']).name=='wav2lip.pth'),None)
-    expected=str((wav2lip or {}).get('sha256',''))
-    target.write_text(json.dumps({'schema':1,'verified':True,'expected':expected},indent=2),encoding='utf-8')
+    expected=str((wav2lip or {}).get('sha256','')).lower()
+    if len(expected)!=64 or not _valid(wav2lip):raise ValueError('口型模型缺少固定 SHA256 或文件校验未通过，无法生成完整性记录。')
+    partial=target.with_name(target.name+'.partial')
+    try:
+     partial.write_text(json.dumps({'schema':1,'verified':True,'expected':expected},indent=2),encoding='utf-8')
+     os.replace(partial,target)
+    finally:partial.unlink(missing_ok=True)
     if not _valid(artifact):raise RuntimeError('无法生成模型完整性记录：'+str(target))
     continue
    name=Path(artifact['path']).name;local=_local_source(artifact)

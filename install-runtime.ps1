@@ -42,7 +42,11 @@ if (-not (Test-Path -LiteralPath $probe)) {
     if (-not (Test-Path -LiteralPath $runtime) -and (Test-Path -LiteralPath (Join-Path $temp 'python\pythonw.exe'))) { $runtime = $temp }
     if (-not (Test-Path -LiteralPath $runtime)) { throw 'The archive does not contain PROGRAM\RUNTIME.' }
     New-Item -ItemType Directory -Force -Path (Join-Path $Root 'program') | Out-Null
-    Copy-Item -LiteralPath $runtime -Destination (Join-Path $Root 'program') -Recurse -Force
+    $destination = Join-Path $Root 'program\runtime'
+    New-Item -ItemType Directory -Force -Path $destination | Out-Null
+    Get-ChildItem -LiteralPath $runtime -Force | ForEach-Object {
+      Copy-Item -LiteralPath $_.FullName -Destination $destination -Recurse -Force
+    }
   } finally {
     if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Recurse -Force }
   }
