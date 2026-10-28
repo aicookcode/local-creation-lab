@@ -1,0 +1,31 @@
+{
+  "name": "竖屏安全区固定字号字幕",
+  "resolution": [
+    1080,
+    1920
+  ],
+  "font": "Noto Sans CJK SC",
+  "font_file": "resources/fonts/NotoSansCJKsc-Bold.otf",
+  "font_size": 84,
+  "font_size_mode": "fixed",
+  "bold": true,
+  "color": "white",
+  "outline_px": 3.2,
+  "shadow_px": 1,
+  "alignment": "middle-center",
+  "center_x_px": 540,
+  "center_y_px": 1200,
+  "safe_margin_left_px": 135,
+  "safe_margin_right_px": 135,
+  "max_width_px": 810,
+  "max_lines": 2,
+  "auto_resize": false,
+  "scale_x": 100,
+  "scale_y": 100,
+  "stretch_text": false,
+  "position_note": "1080×1920中字幕整体中心固定在(540,1200)，长句最多两行，左右至少135px安全区。",
+  "rule": "全部句子固定84号粗体，短句不放大，长句按语义换行；超过两行应先细分字幕时间段，不能缩小字号或拉伸。",
+  "updated_on": "2026-10-17",
+  "pillow_to_ass_advance_scale": 0.71,
+  "measurement_note": "内置Noto Sans CJK SC粗体84号，已按实际libass栅格校准；保守宽度因子0.71"
+}

@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "recipe": "original-lip-smooth-fp32-v1",
+  "installed_worker_sha256": "f11c6b3917556c545577ace76ce3d4dacac0843b769f57b333985318770e5fe1",
+  "compatible_worker_sha256": [
+    "f11c6b3917556c545577ace76ce3d4dacac0843b769f57b333985318770e5fe1",
+    "d44f65338f029afd51286bfc53fc9d4be16468aee239ebb8b17e68610e01b62d",
+    "3b21bc5f7ebf39ade6ebed42824b6b8be19cfbcd579bea32c263542a4587688b",
+    "03a3c1ecde85e453ecb258bd7570d23fb0ca1aa0e61f6d976dfb32955212c6f9"
+  ],
+  "change_scope": "Tracking CPU runtime and checksum-bound checkpoints only; source rendering and other model stages unchanged. Completed prior stages may be imported only with every original file hash verified.",
+  "validation": {
+    "frames": 64,
+    "tracks_and_smoothing_identical": true,
+    "interruption_and_corruption_recovery_passed": true,
+    "independent_original_vs_FTZ_inference_frames": 12,
+    "neutral_inference_also_identical": true,
+    "not_a_proof_for_all_inputs": true
+  },
+  "scope": "Only unchanged blink/predict/cavity/track stage artifacts; encoded pause frames now obey audio constraints and are regenerated."
+}

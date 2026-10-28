@@ -1,0 +1,30 @@
+{
+  "name": "画面相似度转场策略",
+  "approved_modes": {
+    "B": {
+      "name": "平滑推移",
+      "effect": "slideleft",
+      "seconds": 0.2,
+      "frames_at_30fps": 6,
+      "blur": false
+    },
+    "D": {
+      "name": "极轻柔焦",
+      "effect": "microfocus",
+      "seconds": 0.1,
+      "frames_at_30fps": 3,
+      "gaussian_sigma": 2.5
+    }
+  },
+  "default_mode": "auto_bd",
+  "selection": "根据每对相邻图片的中心主体、上部主体、整体画面和亮度差异进行轻量规则判断",
+  "rules": [
+    "同场景、构图与动作变化小：优先D",
+    "主体位置、姿态、画面明暗或场景变化较大：优先B",
+    "包括最后一张回到第一张的衔接，逐对判断",
+    "不随机轮换，不为凑齐两种效果强制混用"
+  ],
+  "method_limit": "这是画面相似度启发式建议，不进行人脸身份识别或精确姿态识别；可在界面手动统一指定B或D。",
+  "workflow": "根据当前相邻图片分析，或按本次手动选择执行。",
+  "group_overrides": {}
+}

@@ -1,0 +1,18 @@
+{
+  "schema": 2,
+  "portable": true,
+  "version": "7.0.0-full-model-preload",
+  "model_home": "../models/voice",
+  "subtitle_models": "../models/subtitle/faster-whisper-base",
+  "main_python": "runtime/python/python.exe",
+  "subtitle_python": "runtime/python/python.exe",
+  "library": "../user_data/voice_library",
+  "fonts": "resources/fonts",
+  "platform": "Windows 10/11 x64",
+  "created_at": "2026-10-18T10:40:47.498499+08:00",
+  "app_name": "本地影音创作工作台",
+  "layout": "english-layout-full-preload",
+  "lazy_models": true
+}
+
+

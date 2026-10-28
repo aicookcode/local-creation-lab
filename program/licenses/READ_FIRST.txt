@@ -1,0 +1,5 @@
+模型、程序与参考声音的许可分别适用。ZipVoice Emilia预训练权重仅限非商业测试；代码开源不解除权重限制。
+包内FFmpeg为7.1 Gyan essentials GPLv3构建，来源https://www.gyan.dev/ffmpeg/builds/；对外分发时应按该构建及对应源码处理。
+Python包的许可证保留在运行环境/python/Lib/site-packages中的dist-info与licensing目录。
+内置Noto字体按SIL OFL 1.1保留许可证；字体文件未经修改。
+本包供当前素材与音色的个人制作、备份和迁移。它不是对参考声音的转授权凭据，也不是已审计的商业分发许可结论。

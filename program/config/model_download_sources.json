@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "version": "7.0.0",
+  "description": "Verified sources for full preload. ZipVoice archive members are extracted and checked against the manifest; portrait integrity.json is generated from the pinned Wav2Lip hash.",
+  "voice_qwen": {
+    "mmproj.gguf": "https://huggingface.co/mradermacher/Qwen3-TTS-12Hz-0.6B-Base-GGUF/resolve/main/Qwen3-TTS-12Hz-0.6B-Base.mmproj-Q8_0.gguf?download=true",
+    "model.gguf": "https://huggingface.co/mradermacher/Qwen3-TTS-12Hz-0.6B-Base-GGUF/resolve/main/Qwen3-TTS-12Hz-0.6B-Base.Q8_0.gguf?download=true"
+  },
+  "voice_zipvoice": {
+    "decoder.onnx": "archive+https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/sherpa-onnx-zipvoice-distill-fp32-zh-en-emilia.tar.bz2#sherpa-onnx-zipvoice-distill-fp32-zh-en-emilia/decoder.onnx",
+    "encoder.onnx": "archive+https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/sherpa-onnx-zipvoice-distill-fp32-zh-en-emilia.tar.bz2#sherpa-onnx-zipvoice-distill-fp32-zh-en-emilia/encoder.onnx",
+    "lexicon.txt": "archive+https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/sherpa-onnx-zipvoice-distill-fp32-zh-en-emilia.tar.bz2#sherpa-onnx-zipvoice-distill-fp32-zh-en-emilia/lexicon.txt",
+    "tokens.txt": "archive+https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/sherpa-onnx-zipvoice-distill-fp32-zh-en-emilia.tar.bz2#sherpa-onnx-zipvoice-distill-fp32-zh-en-emilia/tokens.txt",
+    "vocos_24khz.onnx": "https://github.com/k2-fsa/sherpa-onnx/releases/download/vocoder-models/vocos_24khz.onnx"
+  },
+  "portrait": {
+    "wav2lip.pth": "https://huggingface.co/Nekochu/Wav2Lip/resolve/main/wav2lip.pth?download=true",
+    "integrity.json": "generated://portrait-integrity",
+    "alignment_WFLW_4HG.pth": "https://github.com/xinntao/facexlib/releases/download/v0.1.0/alignment_WFLW_4HG.pth",
+    "detection_Resnet50_Final.pth": "https://github.com/xinntao/facexlib/releases/download/v0.1.0/detection_Resnet50_Final.pth",
+    "GFPGANv1.4.pth": "https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.4.pth",
+    "appearance_feature_extractor.pth": "https://huggingface.co/KlingTeam/LivePortrait/resolve/main/liveportrait/base_models/appearance_feature_extractor.pth?download=true",
+    "motion_extractor.pth": "https://huggingface.co/KlingTeam/LivePortrait/resolve/main/liveportrait/base_models/motion_extractor.pth?download=true",
+    "spade_generator.pth": "https://huggingface.co/KlingTeam/LivePortrait/resolve/main/liveportrait/base_models/spade_generator.pth?download=true",
+    "warping_module.pth": "https://huggingface.co/KlingTeam/LivePortrait/resolve/main/liveportrait/base_models/warping_module.pth?download=true",
+    "stitching_retargeting_module.pth": "https://huggingface.co/KlingTeam/LivePortrait/resolve/main/liveportrait/retargeting_models/stitching_retargeting_module.pth?download=true"
+  }
+}

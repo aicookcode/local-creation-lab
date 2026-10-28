@@ -1,0 +1,32 @@
+[
+  {
+    "file": "qwen-model.md",
+    "url": "https://huggingface.co/Qwen/Qwen3-TTS-12Hz-0.6B-Base/raw/main/README.md",
+    "downloaded": true
+  },
+  {
+    "file": "zipvoice-model-license.md",
+    "url": "https://huggingface.co/k2-fsa/ZipVoice/raw/main/README.md",
+    "downloaded": true
+  },
+  {
+    "file": "zipvoice-code-license.txt",
+    "url": "https://raw.githubusercontent.com/k2-fsa/ZipVoice/master/LICENSE",
+    "downloaded": true
+  },
+  {
+    "file": "llama.cpp-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/ggml-org/llama.cpp/b11707/LICENSE",
+    "downloaded": true
+  },
+  {
+    "file": "Whisper-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/openai/whisper/main/LICENSE",
+    "downloaded": true
+  },
+  {
+    "file": "FFmpeg-COPYING.GPLv3.txt",
+    "url": "https://raw.githubusercontent.com/FFmpeg/FFmpeg/n7.1/COPYING.GPLv3",
+    "downloaded": true
+  }
+]

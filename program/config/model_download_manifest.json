@@ -1,0 +1,154 @@
+{
+  "schema": 1,
+  "created_at": "2026-10-28",
+  "groups": {
+    "subtitle_base": {
+      "label": "基础字幕核对模型",
+      "artifacts": [
+        {
+          "path": "models/subtitle/faster-whisper-base/config.json",
+          "url": "https://huggingface.co/Systran/faster-whisper-base/resolve/main/config.json?download=true",
+          "sha256": "56a6d8110d311f19c8f0471e562832c7527f146b567275bfca59fcf7c184da9a",
+          "size": 2309
+        },
+        {
+          "path": "models/subtitle/faster-whisper-base/model.bin",
+          "url": "https://huggingface.co/Systran/faster-whisper-base/resolve/main/model.bin?download=true",
+          "sha256": "d01c3014881c9c6f3133c182f3d2887eb6ca1c789a7538c5c007196857a0a6a9",
+          "size": 145217532
+        },
+        {
+          "path": "models/subtitle/faster-whisper-base/tokenizer.json",
+          "url": "https://huggingface.co/Systran/faster-whisper-base/resolve/main/tokenizer.json?download=true",
+          "sha256": "fb7b63191e9bb045082c79fd742a3106a12c99513ab30df4a0d47fa6cb6fd0ab",
+          "size": 2203239
+        },
+        {
+          "path": "models/subtitle/faster-whisper-base/vocabulary.txt",
+          "url": "https://huggingface.co/Systran/faster-whisper-base/resolve/main/vocabulary.txt?download=true",
+          "sha256": "34ce3fe1c5041027b3f8d42912270993f986dbc4bb34cf27f951e34a1e453913",
+          "size": 459861
+        }
+      ]
+    },
+    "subtitle_small": {
+      "label": "备用字幕复核模型",
+      "artifacts": [
+        {
+          "path": "models/subtitle/faster-whisper-small/config.json",
+          "url": "https://huggingface.co/Systran/faster-whisper-small/resolve/main/config.json?download=true",
+          "size": 2370
+        },
+        {
+          "path": "models/subtitle/faster-whisper-small/model.bin",
+          "url": "https://huggingface.co/Systran/faster-whisper-small/resolve/main/model.bin?download=true",
+          "size": 483546902
+        },
+        {
+          "path": "models/subtitle/faster-whisper-small/tokenizer.json",
+          "url": "https://huggingface.co/Systran/faster-whisper-small/resolve/main/tokenizer.json?download=true",
+          "size": 2203239
+        },
+        {
+          "path": "models/subtitle/faster-whisper-small/vocabulary.txt",
+          "url": "https://huggingface.co/Systran/faster-whisper-small/resolve/main/vocabulary.txt?download=true",
+          "size": 459861
+        }
+      ]
+    },
+    "voice_qwen": {
+      "label": "Qwen配音模型",
+      "source_note": "需要与随包 qwen-tts 运行器匹配的 GGUF 与 mmproj 文件，请在model_download_sources.json填入直链。",
+      "artifacts": [
+        {
+          "path": "models/voice/candidates/qwen06-llamacpp/mmproj.gguf",
+          "sha256": "202c1fbf3a0f00b7586ca45b8328d696cc6cd980c3798979eaa4fefe8efd8320",
+          "size": 401129632
+        },
+        {
+          "path": "models/voice/candidates/qwen06-llamacpp/model.gguf",
+          "sha256": "59b28b4ab6a1c4e24e6701fc871a427c1fb3e8333f0ed5cebec3bb67a699ae8e",
+          "size": 646211264
+        }
+      ]
+    },
+    "voice_zipvoice": {
+      "label": "ZipVoice配音模型",
+      "source_note": "Emilia权重受非商业测试许可约束，请确认许可后在model_download_sources.json填入直链。",
+      "artifacts": [
+        {
+          "path": "models/voice/candidates/zipvoice-fp32/sherpa-onnx-zipvoice-distill-fp32-zh-en-emilia/decoder.onnx",
+          "sha256": "4510d4f5f049f14ef80207fca695e13c820e2cea61635f402954950bc62b1e3c",
+          "size": 477534010
+        },
+        {
+          "path": "models/voice/candidates/zipvoice-fp32/sherpa-onnx-zipvoice-distill-fp32-zh-en-emilia/encoder.onnx",
+          "sha256": "495eca2d5f8a911f5c361bcce5bd55cdd2508ccdd26ce3e9bf1d3c29eb974861",
+          "size": 17633735
+        },
+        {
+          "path": "models/voice/candidates/zipvoice-fp32/sherpa-onnx-zipvoice-distill-fp32-zh-en-emilia/lexicon.txt",
+          "sha256": "c94b049d970e971acdc2a7e5e7b23ca594222a9d640e417c711f2ad1e7bb7d46",
+          "size": 1727147
+        },
+        {
+          "path": "models/voice/candidates/zipvoice-fp32/sherpa-onnx-zipvoice-distill-fp32-zh-en-emilia/tokens.txt",
+          "sha256": "ce98c1afc5f7a20c2484dffdd68a1fff0a4a2cc707328833750c4476c37cdbda",
+          "size": 2570
+        },
+        {
+          "path": "models/voice/candidates/zipvoice-int8/vocos_24khz.onnx",
+          "sha256": "bcb3b970e384161c4d634f0bb9e999ff1c471b34c9bc0b1049a5014065ed3cc0",
+          "size": 54157409
+        }
+      ]
+    },
+    "portrait": {
+      "label": "人物口播模型",
+      "source_note": "人物模型来源和许可各不相同，请在model_download_sources.json填入经过确认的直链。",
+      "artifacts": [
+        {
+          "path": "models/portrait/Wav2Lip-personal-research-only/wav2lip.pth",
+          "size": 435807851
+        },
+        {
+          "path": "models/portrait/Wav2Lip-personal-research-only/integrity.json",
+          "generated": true
+        },
+        {
+          "path": "models/portrait/facexlib/alignment_WFLW_4HG.pth",
+          "size": 193670248
+        },
+        {
+          "path": "models/portrait/facexlib/detection_Resnet50_Final.pth",
+          "size": 109497761
+        },
+        {
+          "path": "models/portrait/facexlib/GFPGANv1.4.pth",
+          "size": 348632874
+        },
+        {
+          "path": "models/portrait/LivePortrait/liveportrait/base_models/appearance_feature_extractor.pth",
+          "size": 3387959
+        },
+        {
+          "path": "models/portrait/LivePortrait/liveportrait/base_models/motion_extractor.pth",
+          "size": 112545506
+        },
+        {
+          "path": "models/portrait/LivePortrait/liveportrait/base_models/spade_generator.pth",
+          "size": 221813590
+        },
+        {
+          "path": "models/portrait/LivePortrait/liveportrait/base_models/warping_module.pth",
+          "size": 182180086
+        },
+        {
+          "path": "models/portrait/LivePortrait/liveportrait/retargeting_models/stitching_retargeting_module.pth",
+          "size": 2393098
+        }
+      ]
+    }
+  },
+  "version": "7.0.0-full-model-preload"
+}

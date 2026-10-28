@@ -1,0 +1,21 @@
+{
+  "name": "知命有光-正脸四图构图规范",
+  "images_per_group": 4,
+  "aspect_ratio": "9:16",
+  "person_height_ratio": 0.8,
+  "headroom_top_ratio": [
+    0.1,
+    0.15
+  ],
+  "identity": "同组固定已认可东方成熟女性、同场景同服饰",
+  "face": "尽量正对镜头、双眼清晰、自然直视观众，有交谈感",
+  "poses": "四种明显不同姿态即可，无需连续动作或故事情节",
+  "sequence": "约3秒换图循环，按画面衔接选择B/D，不以故事编排",
+  "cover_check": "检查实际发布封面裁切；需要时另选偏上裁切位置，不能为居中方形裁切牺牲人像大小",
+  "subtitle": "固定84号粗体，最大宽度810px，左右各135px，整体中心距顶部1200px；长句语义换行最多两行，短句不放大。",
+  "confirmed_on": "2026-10-17",
+  "supersedes": "六图、25%头顶留白与故事图序方案已被用户取消",
+  "video_parameters": "program/core/video/platform_video_params.json",
+  "subtitle_style": "program/core/video/default_subtitle_style.json",
+  "subject_horizontal_safe": "重要人物尽量居中，不贴左右边缘"
+}

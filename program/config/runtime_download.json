@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "platform": "windows-x64",
+  "archive_name": "runtime-windows-x64.zip",
+  "download_url": "https://github.com/aicookcode/local-creation-lab/releases/download/v1.0.0/runtime.zip",
+  "sha256": "25fcf30925e35c07f932cd48848aa551c1ad8679d13c37b9838ebe0762ea65ca",
+  "archive_layout": "program/runtime"
+}
+

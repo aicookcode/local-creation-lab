@@ -1,0 +1,9 @@
+本地备用语音识别模型
+模型：Systran/faster-whisper-small
+来源：https://huggingface.co/Systran/faster-whisper-small
+固定版本：536b0662742c02347bc0e980a01041f333bce120
+许可：官方模型卡标注MIT；原始模型卡保留在模型目录README.md。
+用途：轻量识别失败后的离线复核，不替换用户音色或语音合成模型。
+存储权重来自官方CTranslate2转换模型；本程序以CPU FP32计算。
+文件摘要及来源记录：模型/subtitle/faster-whisper-small/integrity.json。
+日常制作仅本地读取，不自动下载。

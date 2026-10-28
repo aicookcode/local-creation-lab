@@ -1,0 +1,29 @@
+{
+  "name": "知命有光-三平台通用视频制作参数",
+  "canvas": [
+    1080,
+    1920
+  ],
+  "aspect_ratio": "9:16",
+  "fps": 30,
+  "container": "mp4",
+  "video_codec": "h264",
+  "pixel_format": "yuv420p",
+  "audio_codec": "aac",
+  "safe_margin_left_px": 135,
+  "safe_margin_right_px": 135,
+  "subtitle_max_width_px": 810,
+  "subtitle_center_px": [
+    540,
+    1200
+  ],
+  "subtitle_font_size": 84,
+  "subtitle_bold": true,
+  "subtitle_size_fixed": true,
+  "subtitle_max_lines": 2,
+  "subject": "重要人物尽量居中、不贴左右边缘；维持四张正脸图、人物约占画面80%、头顶留白10%–15%的标准。",
+  "subtitle_style_file": "core/video/default_subtitle_style.json",
+  "transition": "保留已认可B/D方案，依照图片选择；第1段保留B。",
+  "scope": "通用保守排版基准，不代表各平台所有设备和页面的UI遮挡完全相同。",
+  "updated_on": "2026-10-17"
+}

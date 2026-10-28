@@ -1,0 +1,104 @@
+{
+  "isolation": "musetalk-1.5-deps; only prepended in experiment process",
+  "original_dependencies_replaced": false,
+  "source": "PyPI official release wheels via pip",
+  "packages": [
+    {
+      "name": "accelerate",
+      "version": "0.28.0",
+      "metadata_sha256": "3528fc060ba89e0773ae4567bc0433bf01cf3a23d24c1955b7c285648816631a",
+      "licenses": [
+        "accelerate-0.28.0.dist-info\\LICENSE"
+      ]
+    },
+    {
+      "name": "diffusers",
+      "version": "0.30.2",
+      "metadata_sha256": "e70eebd7a0f54020a2ffc641d689a58de6d4a141597bbacb082db66aa5ec22d0",
+      "licenses": [
+        "diffusers-0.30.2.dist-info\\LICENSE"
+      ]
+    },
+    {
+      "name": "einops",
+      "version": "0.8.1",
+      "metadata_sha256": "79529559045603ccd27713c844f2b57247c48e93135077bdb904bc53ed189403",
+      "licenses": [
+        "einops-0.8.1.dist-info\\licenses\\LICENSE"
+      ]
+    },
+    {
+      "name": "huggingface-hub",
+      "version": "0.30.2",
+      "metadata_sha256": "108629785c047a774d9859ec1342d5668145bf4b7547306105a523c5ce0e2aea",
+      "licenses": [
+        "huggingface_hub-0.30.2.dist-info\\LICENSE"
+      ]
+    },
+    {
+      "name": "importlib_metadata",
+      "version": "7.2.1",
+      "metadata_sha256": "844bdcb623c86f791ef314dd51e1eb761ec7c1ae13fa70bfba02d9caf4852c1d",
+      "licenses": [
+        "importlib_metadata-7.2.1.dist-info\\LICENSE"
+      ]
+    },
+    {
+      "name": "librosa",
+      "version": "0.11.0",
+      "metadata_sha256": "5aaba06be0f28ca1ca776f8884fc0945f752a38d7ddca249403644d6f685c6d3",
+      "licenses": [
+        "librosa-0.11.0.dist-info\\LICENSE.md"
+      ]
+    },
+    {
+      "name": "msgpack",
+      "version": "1.1.0",
+      "metadata_sha256": "a2e6b5027036545a8d87ce63c7e5e73d2c656699538fea92ff97f0342cf3b6f0",
+      "licenses": [
+        "msgpack-1.1.0.dist-info\\COPYING"
+      ]
+    },
+    {
+      "name": "regex",
+      "version": "2024.11.6",
+      "metadata_sha256": "ce4e01d70f31bcf5049a3591cda09f5a5d4f140d516247b7ce631ef48c1044a5",
+      "licenses": [
+        "regex-2024.11.6.dist-info\\LICENSE.txt"
+      ]
+    },
+    {
+      "name": "soxr",
+      "version": "0.5.0.post1",
+      "metadata_sha256": "777202f28af32a0ae3be3e2c005f3738e2c2b8c87d4a9206cfc4afa54402e100",
+      "licenses": [
+        "soxr-0.5.0.post1.dist-info\\licenses\\COPYING.LGPL",
+        "soxr-0.5.0.post1.dist-info\\licenses\\LICENSE-libsoxr.txt",
+        "soxr-0.5.0.post1.dist-info\\licenses\\LICENSE-PFFFT.txt",
+        "soxr-0.5.0.post1.dist-info\\licenses\\LICENSE.txt"
+      ]
+    },
+    {
+      "name": "tokenizers",
+      "version": "0.15.2",
+      "metadata_sha256": "c7f0a9cce7564561a83baf8cc20a72bb6e6091b28d32b070202035dbc96659d6",
+      "licenses": []
+    },
+    {
+      "name": "transformers",
+      "version": "4.39.2",
+      "metadata_sha256": "6e307dbb33649590233544b206b286c6ca9e1852bded7dcbed6604949a9902d8",
+      "licenses": [
+        "transformers-4.39.2.dist-info\\LICENSE"
+      ]
+    },
+    {
+      "name": "zipp",
+      "version": "3.19.2",
+      "metadata_sha256": "508ae4fe43081c64b0b0a2828588b3a8cc3430c6693d1676662569400b0dfdb1",
+      "licenses": [
+        "zipp-3.19.2.dist-info\\LICENSE"
+      ]
+    }
+  ]
+}
