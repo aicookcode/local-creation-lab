@@ -1,6 +1,6 @@
 # Local Media Studio 1.0
 
-This GitHub source package contains the ASCII-layout launcher, Python source, configuration, resources, licenses and model download manifest. Runtime binaries and model weights are intentionally excluded.
+Local Media Studio 是一款本地离线影音创作工作台，集成声音克隆、文本配音、图片视频制作、人物口播生成，以及字幕识别、校对与成片导出功能。支持快捷制作和分步操作，帮助你从文案、音频和图片完成视频制作。
 
 ## 使用方法
 
