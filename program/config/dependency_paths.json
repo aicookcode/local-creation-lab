@@ -1,7 +1,7 @@
 {
   "schema": 2,
   "portable": true,
-  "version": "7.0.0-full-model-preload",
+  "version": "7.1.0-full-model-preload",
   "model_home": "../models/voice",
   "subtitle_models": "../models/subtitle/faster-whisper-base",
   "main_python": "runtime/python/python.exe",
@@ -14,5 +14,3 @@
   "layout": "english-layout-full-preload",
   "lazy_models": true
 }
-
-

@@ -28,7 +28,7 @@ class PortraitPanel:
   self.blink_box=field(box,'眼睑动作',self.blink,['自然眨眼','不添加眨眼','自定义眨眼时间'],note='推荐方案自然间隔约2.1–3.1秒，每次约0.3秒；只改变眼睑，不改变视线。')
   self.blink_input=field(box,'自定义开始时间（秒）',self.blink_times,note='仅选择“自定义”时填写，例如1.4, 6；每次眨眼占0.3秒，时间须在本次配音内。')
   self.reference_mode=tk.StringVar();self.reference_image=tk.StringVar()
-  self.reference_box=field(box,'口腔参考',self.reference_mode,['自动准备','使用同人物张嘴照片'],note='自动参考由当前照片与模型生成，牙齿细节为推测；清晰的同人物、同角度张嘴图可改善口腔细节。')
+  self.reference_box=field(box,'口腔参考',self.reference_mode,['自动准备','使用同人物张嘴照片'],note='清楚露齿时直接用原图嘴型，开口不超过照片。闭嘴或牙齿不清楚时自动准备，也可手动选择参考。')
   rr=ttk.Frame(box);rr.pack(fill='x',pady=5);ttk.Entry(rr,textvariable=self.reference_image,state='readonly').pack(side='left',fill='x',expand=True);self.reference_button=self.button(rr,'选择张嘴参考图',self.choose_reference)
   self.legacy_boxes=[]
   box=section(page,'可选：标注动作区域','仅做嘴型可跳过。二维轻摆不会生成新的手指或三维姿态；角度越大，边缘接缝风险越高。')

@@ -1,6 +1,6 @@
-# Local Media Studio 7.0
+# Local Media Studio 7.1
 
-This package is the English-layout, full-model-preload edition of the local offline audio and video workstation. All machine-facing package, program, model, cache, project, log, user-data, configuration, license, script and executable names use ASCII/English naming. User-facing GUI text may remain Chinese.
+This package is the English-layout, full-model-preload edition of the local offline audio and video workstation. Shipped package, program, model and configuration paths use ASCII filenames. GUI labels and names used by existing project documents may contain Chinese.
 
 ## Package layout
 
@@ -10,6 +10,7 @@ PACKAGE/
   start_workbench.bat
   start_workbench_diagnostic.bat
   start_workbench.ps1
+  install-runtime.ps1
   USER_GUIDE.html
   program/
     program_entry.py
@@ -29,11 +30,11 @@ PACKAGE/
   maintenance/
 ```
 
-`projects`, `cache`, `logs` and `maintenance` are new empty directories in this release. Do not restore files from the removed 6.x project tree into the new package unless they have been explicitly migrated and checked.
+The source release omits runtime binaries, downloaded model weights and generated data. The launchers create required directories at first use.
 
 ## Startup contract
 
-`local_media_studio.exe` and `start_workbench.bat` use the same `program/program_entry.py` entry. The launcher first checks the bundled runtime, FFmpeg and fonts. The entry then opens a small startup-preparation window and verifies or downloads every model group before showing the main workbench:
+`local_media_studio.exe` and `start_workbench.bat` use the same `program/program_entry.py` entry. The launcher checks FFmpeg and fonts, and installs or repairs the runtime from the configured SHA256-pinned GitHub release when required. The entry then opens a small startup-preparation window and verifies or downloads every model group before showing the main workbench:
 
 - `subtitle_base`
 - `subtitle_small`
@@ -41,13 +42,18 @@ PACKAGE/
 - `voice_zipvoice`
 - `portrait`
 
-The model manifest is `program/config/model_download_manifest.json`; sources are in `program/config/model_download_sources.json`. Every downloaded file is written to a temporary file, checked for the manifest size and SHA256, then atomically renamed. ZipVoice official fp32 assets are published as one archive, so the installer downloads that archive once and extracts the requested member before applying the per-file checks. `portrait/integrity.json` is generated locally from the pinned Wav2Lip hash because it is package verification metadata, not a publisher model file.
+The model manifest is `program/config/model_download_manifest.json`; sources are in `program/config/model_download_sources.json`. Every downloaded file is written to a temporary file, checked for the manifest size and SHA256, then atomically renamed. ZipVoice FP32 assets and its phoneme data come from one archive. The installer verifies individual files and the phoneme data directory. It generates the Wav2Lip and Whisper-small integrity records from pinned manifest metadata.
 
 If startup preparation fails, the workbench stays closed and shows the reason, the next actions, and `logs/startup_preflight.log`. A Python exception is written to `logs/startup_error.log`. The diagnostic entry runs the same preparation and then keeps the Python diagnostic console visible.
 
+## Subtitle and portrait behavior
+
+- Quick creation and the two video tabs save the subtitle display choice. With subtitles disabled, automation can omit SRT and subtitle style from export and skips subtitle checks. Old projects with no choice still display subtitles. The recommended portrait engine still needs the transcript for lip timing.
+- In `detail_v2`, an explicitly selected mouth-reference image takes precedence. In automatic mode, confirmed visible teeth enable animation within the source mouth opening. If the photo fails that check, use the model-generated reference path. Existing masters can still be exported using their matching caches.
+
 ## Development rules
 
-- Keep machine-facing filenames and path components ASCII. Do not add Chinese names to `program`, `models`, `projects`, `cache`, `logs`, `user_data` or `maintenance`.
+- Keep machine-facing filenames and path components ASCII. Keep shipped paths and new program-owned storage paths ASCII. Preserve historical project document names and references at their compatibility boundary.
 - Keep model paths, sizes and SHA256 values synchronized between the manifest and source configuration. Never add an unverified model URL.
 - Do not lower model precision, output quality, canvas, frame rate or audio quality to make startup or generation faster.
 - Do not record microphones automatically. Do not send local media to a service.

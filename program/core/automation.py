@@ -24,7 +24,7 @@ REQUIRED={
  'clone':{'name','engine','reference','start','duration'},'voice_import':{'backup'},'voice_export':{'voice_id'},
  'speech':{'voice_id'},'photo':{'audio','images','seconds','transition','motion','strength'},
  'portrait_prepare':{'image','framing'},'portrait':{'audio','settings'},'align':{'audio','text_file'},
- 'validate_subtitles':{'audio','subtitles'},'export':{'video','audio','subtitles','style','review'},'check':{'video','audio'}}
+ 'validate_subtitles':{'audio','subtitles'},'export':{'video','audio','review'},'check':{'video','audio'}}
 OUTPUTS={
  'clone':{'voice_id','profile'},'voice_import':{'voice_id','profile'},'voice_export':{'backup'},
  'speech':{'audio','text_file','voice_id'},'photo':{'video','audio','pictures','options'},
@@ -62,7 +62,9 @@ def validate(task):
   if action=='align' and s.get('method','standard') not in ('standard','verified'):raise ValueError('method仅支持standard或verified。')
   if action=='speech' and s.get('segmentation','auto') not in ('auto','whole','paragraph'):raise ValueError('segmentation仅支持auto、whole、paragraph。')
   if 'route' in s and s['route'] not in ('photo','portrait'):raise ValueError('route仅支持photo或portrait。')
-  if action=='export' and s['review'] not in ('ai_checked','human_confirmed'):raise ValueError('导出须明确review=ai_checked或human_confirmed。AI检查不能冒充人工验收。')
+  if action=='export':
+   if s['review'] not in ('ai_checked','human_confirmed'):raise ValueError('导出须明确review=ai_checked或human_confirmed。AI检查不能冒充人工验收。')
+   if 'subtitles' in s and 'style' not in s:raise ValueError('带字幕导出必须提交style；不显示字幕时可省略subtitles和style。')
   for rid,key in refs(s):
    if rid not in previous or key not in OUTPUTS[previous[rid]]:raise ValueError('引用须指向之前步骤的有效输出：@'+rid+'.'+key)
   previous[sid]=action
@@ -179,9 +181,19 @@ class TaskRunner:
    run_process(args,folder/'字幕识别.log');return {'subtitles':str(folder/'subtitle/subtitle.srt'),'text_file':str(script),'audio':str(audio),'review':'draft'}
   if action=='validate_subtitles':return check_subtitles(self.input(s['audio']),self.input(s['subtitles']))
   if action=='export':
-   video=self.copy_input(s['video'],folder);audio=self.copy_input(s['audio'],folder);subs=self.copy_input(s['subtitles'],folder);check_subtitles(audio,subs)
+   video=self.copy_input(s['video'],folder);audio=self.copy_input(s['audio'],folder);subs=self.copy_input(s['subtitles'],folder) if s.get('subtitles') else None
    metadata=self.input(s['video']).with_suffix('.detail.json')
    if metadata.is_file():shutil.copy2(metadata,video.with_suffix('.detail.json'))
+   # A no-subtitle export is a direct copy of the verified mother video. It
+   # intentionally avoids ASR, SRT parsing, ASS layout and subtitle encoding.
+   if subs is None:
+    target=folder/'无字幕成片.mp4'
+    shutil.copy2(video,target)
+    for suffix in ('.detail.json','.speech.json','.speech.npz'):
+     sidecar=video.with_suffix(suffix)
+     if sidecar.is_file():shutil.copy2(sidecar,target.with_suffix(suffix))
+    return {'video':str(target),'audio':str(audio),'review':s['review'],'subtitles':None}
+   check_subtitles(audio,subs)
    # The same fixed-font and width checks used by the GUI are applied here.
    style=captions.load_style()
    if s['style']!='recommended':
@@ -216,7 +228,8 @@ class TaskRunner:
     else:data['portrait']=r['settings']
    elif action=='align':data.update(subtitle=r['subtitles'],script=r['text_file'],source_text=read_text(r['text_file']),reviewed=False)
    elif action=='export':
-    style=s['style'] if isinstance(s['style'],dict) else {};data.update(final=r['video'],final_variant='subtitled',reviewed=s['review']=='human_confirmed',output_style={'font_size':str(style.get('font_size',84)),'center_y':str(style.get('center_y',1200)),'width':str(style.get('width',810))})
+    style=s['style'] if isinstance(s.get('style'),dict) else {};with_subtitles=bool(s.get('subtitles'))
+    data.update(final=r['video'],final_variant='subtitled' if with_subtitles else 'plain',show_subtitles=with_subtitles,reviewed=s['review']=='human_confirmed',output_style={'font_size':str(style.get('font_size',84)),'center_y':str(style.get('center_y',1200)),'width':str(style.get('width',810))} if with_subtitles else {})
     if r.get('exported'):data['published']=r['exported'];data['export_dir']=str(Path(r['exported']).parent)
    elif action=='check':data['portrait_report']=r['report']
  def run(self):
@@ -237,10 +250,14 @@ class TaskRunner:
   self.report['status']='completed';self.persist();return self.report
 
 def diagnose():
- paths={'python':Path(CFG['main_python']),'qwen_runtime':ROOT/'runtime/qwen-tts/llama-tts.exe','tts_models':Path(CFG['model_home']),'subtitle_model':Path(CFG['subtitle_models']),'fonts':Path(CFG['fonts']),'voice_library':USER_RESOURCES/'voice_library/index.json',**service.prerequisites()}
+ paths={'python':Path(CFG['main_python']),'qwen_runtime':ROOT/'runtime/qwen-tts/llama-tts.exe','tts_models':Path(CFG['model_home']),'subtitle_model':Path(CFG['subtitle_models']),'fonts':Path(CFG['fonts']),**service.prerequisites()}
  from recognition_support import review_descriptor
  review=review_descriptor()
- return {'status':'ready' if all(p.exists() for p in paths.values()) else 'missing_components','checks':{k:{'exists':p.exists(),'path':str(p)} for k,p in paths.items()},'optional_checks':{'offline_asr_review':{'available':review.get('available',True),'path':str(PACKAGE_ROOT/'models/subtitle/faster-whisper-small')}},'microphone_opened':False}
+ library=USER_RESOURCES/'voice_library/index.json'
+ checks={k:{'exists':p.exists(),'path':str(p)} for k,p in paths.items()}
+ ready=all(check['exists'] for check in checks.values())
+ checks['voice_library']={'exists':library.is_file(),'path':str(library),'required':False}
+ return {'status':'ready' if ready else 'missing_components','checks':checks,'optional_checks':{'offline_asr_review':{'available':review.get('available',True),'path':str(PACKAGE_ROOT/'models/subtitle/faster-whisper-small')}},'microphone_opened':False}
 def main():
  parser=argparse.ArgumentParser(description='本地影音工作台：AI统一执行入口。所有操作均离线，不自动录音。')
  group=parser.add_mutually_exclusive_group(required=True);group.add_argument('--diagnose',action='store_true');group.add_argument('--list-voices',action='store_true');group.add_argument('--task',type=Path)

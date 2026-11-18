@@ -10,7 +10,7 @@ from task_progress import export_copy
 class VideoWorkspace(WorkflowCore):
  def __init__(self,manager,parent,kind):
   self.manager=manager;self.root=manager.root;self.kind=kind;self.label='图片视频' if kind=='photo' else '人物口播';self.status=manager.status;self.data={};self.portrait=None
-  self.loading_editor=False;self.buttons=manager.buttons;self.name=manager.name;self.pictures=tk.StringVar();self.project_label=tk.StringVar();self.source_info=tk.StringVar();self.summary=tk.StringVar()
+  self.loading_editor=False;self.buttons=manager.buttons;self.name=manager.name;self.pictures=tk.StringVar();self.project_label=tk.StringVar();self.source_info=tk.StringVar();self.summary=tk.StringVar();self.show_subtitles=tk.BooleanVar(value=True)
   self.tabs=ttk.Notebook(parent);self.tabs.pack(fill='both',expand=True);self.pages={};self.surfaces={}
   for key,label in [('video' if kind=='photo' else 'portrait','画面制作'),('captions','字幕校对'),('export','导出与检查')]:
    page=ScrollPage(self.tabs);self.tabs.add(page,text='  '+label+'  ');self.pages[key]=page.body;self.surfaces[key]=page
@@ -37,6 +37,8 @@ class VideoWorkspace(WorkflowCore):
   ttk.Label(box,text='配套正文：填写音频实际朗读的文字，或导入TXT。').pack(anchor='w',pady=(4,4))
   self.source_editor=ScrolledText(box,height=3,wrap='word',font=('Microsoft YaHei UI',11,'normal'),undo=True);self.source_editor.pack(fill='x')
   row=self.bar(box);self.button(row,'导入正文TXT',self.import_transcript,side='left');self.button(row,'确认本页音频与正文',self.confirm_source,side='left',padx=7)
+  ttk.Checkbutton(box,text='显示字幕（关闭后跳过字幕识别、校对、压制和字幕检查）',variable=self.show_subtitles,command=self.subtitle_option_changed).pack(anchor='w',pady=(7,2))
+  ttk.Label(box,text='图片轮转关闭字幕时正文可以留空；人物口播仍需填写实际正文用于口型制作。配音仍按当前音频制作，视频直接导出无字幕版本。',wraplength=850,style='Muted.TLabel').pack(anchor='w')
  def choose_audio(self):
   if not self.idle():return
   path=filedialog.askopenfilename(title=self.label+'：选择本次音频',filetypes=[('音频','*.wav *.mp3 *.m4a *.flac *.ogg')])
@@ -66,7 +68,7 @@ class VideoWorkspace(WorkflowCore):
   return Path(self.data['audio'])
  def commit_source(self,required=True):
   audio=self.require_audio();text=self.source_editor.get('1.0','end').strip()
-  if required and not text:raise ValueError('请填写本页音频实际朗读的正文；生成字幕需要这份文字。')
+  if required and (self.show_subtitles.get() or self.kind=='portrait') and not text:raise ValueError('请填写本页音频实际朗读的正文；生成字幕或人物口型制作需要这份文字。')
   if not text:return
   old=Path(self.data.get('script',''))
   if old.is_file() and old.read_text(encoding='utf-8-sig').strip()==text:return
@@ -78,24 +80,28 @@ class VideoWorkspace(WorkflowCore):
   except Exception as e:show_error('请检查本页输入',str(e))
  def align(self):
   if not self.idle():return
+  if not self.show_subtitles.get():
+   self.status.set(self.label+'：已关闭字幕，跳过字幕识别。');return
   try:self.commit_source(True)
   except Exception as e:show_error('无法生成字幕',str(e));return
   super().align()
  def load_editor(self):
   self.loading_editor=True;self.editor.delete('1.0','end');path=self.data.get('subtitle');draft=self.data.get('subtitle_draft')
-  text=draft if draft is not None else (Path(path).read_text(encoding='utf-8-sig') if available(path) else '')
+  text='' if not self.show_subtitles.get() else (draft if draft is not None else (Path(path).read_text(encoding='utf-8-sig') if available(path) else ''))
   if text:self.editor.insert('1.0',text)
   self.caption_hint.set('当前字幕：'+Path(path).name if available(path) else '尚未生成字幕。未保存的编辑会作为任务草稿保留。');self.editor.edit_modified(False);self.loading_editor=False
  def save_captions(self):
+  if not self.show_subtitles.get():raise ValueError('当前已关闭字幕，已跳过字幕保存。')
   result=super().save_captions();self.data['subtitle_draft']=self.editor.get('1.0','end');return result
  def import_srt(self):
   if not self.idle():return
+  if not self.show_subtitles.get():self.status.set(self.label+'：已关闭字幕，跳过SRT导入。');return
   self.create_dirs();self.data.pop('subtitle_draft',None);super().import_srt()
  def import_mother(self):
   if not self.idle():return
   self.create_dirs();super().import_mother()
  def snapshot(self):
-  self.data.update(pictures=self.pictures.get(),source_text=self.source_editor.get('1.0','end').strip(),subtitle_draft=self.editor.get('1.0','end'),subtitle_use_prompt=self.subtitle_prompt.get(),reviewed=self.reviewed.get(),export_dir=self.export_dir.get(),output_style={k:v.get() for k,v in [('font_size',self.font_size),('center_y',self.caption_y),('width',self.caption_width)]})
+  self.data.update(pictures=self.pictures.get(),source_text=self.source_editor.get('1.0','end').strip(),show_subtitles=bool(self.show_subtitles.get()),subtitle_draft=self.editor.get('1.0','end'),subtitle_use_prompt=self.subtitle_prompt.get(),reviewed=self.reviewed.get(),export_dir=self.export_dir.get(),output_style={k:v.get() for k,v in [('font_size',self.font_size),('center_y',self.caption_y),('width',self.caption_width)]})
   if self.kind=='photo':self.data['video']=self.options()
   else:
    self.data['portrait']=self.portrait.serialize()
@@ -112,7 +118,8 @@ class VideoWorkspace(WorkflowCore):
     value=self.data.get('video',{}).get(k) or '';v.set(photo.normalize_transition(value) if k=='transition' else value)
    self.plan_view.delete('1.0','end')
   else:self.portrait.load(self.data.get('portrait'))
-  self.subtitle_prompt.set(bool(self.data.get('subtitle_use_prompt',False)))
+  self.show_subtitles.set(bool(self.data.get('show_subtitles',True)));self.subtitle_prompt.set(bool(self.data.get('subtitle_use_prompt',False)))
+  if hasattr(self,'export_button'):self.export_button.configure(text='导出字幕成片' if self.show_subtitles.get() else '导出无字幕成片')
   for k,v in [('font_size',self.font_size),('center_y',self.caption_y),('width',self.caption_width)]:v.set(self.data.get('output_style',{}).get(k,''))
   self.load_editor();self.reviewed.set(bool(self.data.get('reviewed',False)));self.refresh()
  def refresh(self):
@@ -120,7 +127,8 @@ class VideoWorkspace(WorkflowCore):
   self.source_info.set('本页音频：'+name+(f' / {self.data["audio_seconds"]:.2f}秒' if self.data.get('audio_seconds') else ''))
   if hasattr(self,'audio_display'):self.audio_display.set('音频：'+name+'；字幕和导出结果仅属于'+self.label+'。')
   self.caption_source.set('正在校对：'+self.label+' / '+name)
-  self.export_sources.set('本流程：'+self.label+'\n母版：'+(Path(self.data['mother']).name if available(self.data.get('mother')) else '未制作')+'\n字幕：'+(Path(self.data['subtitle']).name if available(self.data.get('subtitle')) else '未生成')+'\n成片：'+(Path(self.data['final']).name if available(self.data.get('final')) else '未导出'))
+  captions_state='不显示（已跳过字幕处理）' if not self.show_subtitles.get() else (Path(self.data['subtitle']).name if available(self.data.get('subtitle')) else '未生成')
+  self.export_sources.set('本流程：'+self.label+'\n母版：'+(Path(self.data['mother']).name if available(self.data.get('mother')) else '未制作')+'\n字幕：'+captions_state+'\n成片：'+(Path(self.data['final']).name if available(self.data.get('final')) else '未导出'))
   if self.kind=='photo':
    old=self.image_list.curselection();self.image_list.delete(0,'end');paths=self.image_files();names={}
    if paths and (paths[0].parent/'图片名称.json').is_file():names=json.loads((paths[0].parent/'图片名称.json').read_text(encoding='utf-8'))
@@ -214,7 +222,7 @@ class VideoWorkspace(WorkflowCore):
   field(box,'字幕中心距顶部',self.caption_y,width=10,note='推荐1200px；数值越小越靠上。范围700–1500px。')
   field(box,'字幕最大宽度',self.caption_width,width=10,note='推荐810px；更窄可避开平台两侧遮挡。范围600–840px。')
   self.reviewed=tk.BooleanVar(value=False);ttk.Checkbutton(box,text='我已复听并校对字幕，确认当前母版对应这份配音',variable=self.reviewed).pack(anchor='w',pady=12)
-  row=self.bar(box);self.button(row,'导出字幕成片',self.export,primary=True,side='left');self.button(row,'播放成片',lambda:self.play('final'),side='left',padx=8);self.button(row,'打开输出文件夹',lambda:self.open_path(Path(self.export_dir.get()) if self.export_dir.get() else self.project/'04-成片'),side='left');self.button(row,'另存已有成片',self.save_final_as,side='left',padx=7)
+  row=self.bar(box);self.export_button=self.button(row,'导出字幕成片',self.export,primary=True,side='left');self.button(row,'播放成片',lambda:self.play('final'),side='left',padx=8);self.button(row,'打开输出文件夹',lambda:self.open_path(Path(self.export_dir.get()) if self.export_dir.get() else self.project/'04-成片'),side='left');self.button(row,'另存已有成片',self.save_final_as,side='left',padx=7)
   box=section(p,'检查后再发布','自动检查可发现黑帧、解码、音轨与字幕边界问题；动作自然度和发布页遮挡仍需人工复核。')
   row=self.bar(box);self.button(row,'运行成片检查',self.check_current,side='left');self.button(row,'打开检查报告',lambda:self.play('portrait_report'),side='left',padx=8)
   self.button(p,'已有无字幕视频？导入1080×1920母版',self.import_mother,anchor='w',pady=8)
@@ -223,6 +231,14 @@ class VideoWorkspace(WorkflowCore):
  def output_recipe(self):
   if not self.idle():return
   self.font_size.set('84');self.caption_y.set('1200');self.caption_width.set('810');self.persist();self.status.set('已应用安全区字幕样式，可按实际平台预览调整。')
+
+ def subtitle_option_changed(self):
+  enabled=bool(self.show_subtitles.get())
+  if hasattr(self,'export_button'):
+   self.export_button.configure(text='导出字幕成片' if enabled else '导出无字幕成片')
+  if not enabled:
+   self.reviewed.set(False);self.data.update(final='',final_variant='')
+  self.data['show_subtitles']=enabled;self.load_editor();self.persist();self.refresh()
 
  def export_style(self):
   try:values=[float(v.get()) for v in (self.font_size,self.caption_y,self.caption_width)]
@@ -233,6 +249,7 @@ class VideoWorkspace(WorkflowCore):
 
  def export(self):
   if not self.idle():return
+  if not self.show_subtitles.get():self.export_plain();return
   try:
    self.commit_source(True);style=self.export_style()
    if not self.reviewed.get():raise ValueError('请先复听、校对并勾选确认。')

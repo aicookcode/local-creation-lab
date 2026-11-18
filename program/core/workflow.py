@@ -238,6 +238,8 @@ class WorkflowCore:
         except Exception as e:show_error('字幕未保存',str(e))
     def to_export(self):
         if not self.idle():return
+        if hasattr(self,'show_subtitles') and not self.show_subtitles.get():
+            self.tab('export');return
         try:self.save_captions();self.tab('export')
         except Exception as e:show_error('请先完成字幕',str(e))
     def import_srt(self):

@@ -33,12 +33,15 @@ class QuickPanel:
         self.voice_box.bind('<<ComboboxSelected>>',lambda e:self.voice_note());row=self.row(box);self.button(row,'刷新音色',self.refresh,side='left');self.button(row,'听参考样本',self.listen,side='left',padx=6)
         self.voice_hint=tk.StringVar();ttk.Label(box,textvariable=self.voice_hint,wraplength=850,style='Good.TLabel').pack(anchor='w')
         self.route=tk.StringVar();self.route.trace_add('write',lambda *_:self.route_changed());field(box,'输出形式',self.route,['图片轮转','人物口播'],note='选择后只显示该形式的参数：图片轮转使用整图运动和转场；人物口播使用嘴型、发声校准与眨眼。')
+        self.show_subtitles=tk.BooleanVar(value=True)
+        ttk.Checkbutton(box,text='显示字幕（关闭后跳过字幕识别、校对、压制和字幕检查）',variable=self.show_subtitles,command=self.subtitle_option_changed).pack(anchor='w',pady=(2,4))
+        ttk.Label(box,text='关闭后仍会保留正文用于配音，但不会生成或处理字幕文件。',wraplength=850,style='Muted.TLabel').pack(anchor='w')
         box=section(p,'导入本次参数','从参数库选择与输出形式对应的记录后点击载入，也可导入参数JSON。只加载该形式的制作参数，不带入旧文案、旧照片或输出目录。')
         self.record_choice=tk.StringVar();self.record_label=tk.StringVar(value='输出形式参数');record_row=ttk.Frame(box);record_row.pack(fill='x',pady=5);ttk.Label(record_row,textvariable=self.record_label,width=16).pack(side='left');self.record_box=ttk.Combobox(record_row,textvariable=self.record_choice,values=[],state='readonly',width=25);self.record_box.pack(side='left',padx=(0,12));ttk.Label(record_row,text='只显示当前输出形式的参数记录。',style='Muted.TLabel',wraplength=480).pack(side='left',fill='x',expand=True)
         row=self.row(box);self.button(row,'载入所选参数',self.load_selected,side='left');self.button(row,'导入参数文件',lambda:self.import_record(True),side='left',padx=6);self.button(row,'查看 / 管理参数记录',self.show_library,side='left')
         self.parameter_hint=tk.StringVar(value='尚未导入参数。');ttk.Label(box,textvariable=self.parameter_hint,wraplength=850,style='Good.TLabel').pack(anchor='w',pady=6)
         self.reference=tk.StringVar();row=self.row(box);ttk.Entry(row,textvariable=self.reference,state='readonly').pack(side='left',fill='x',expand=True);self.button(row,'可选：张嘴参考',self.choose_reference,side='left',padx=6);self.button(row,'清空参考',lambda:self.reference.set(''),side='left')
-        ttk.Label(box,text='自动参考参数无需额外图片。只有选用“用户张嘴参考”的参数时，才必须另交同人物、同角度照片。',wraplength=850,style='Muted.TLabel').pack(anchor='w')
+        ttk.Label(box,text='自动参考会先检查原图。清楚露齿时直接用原图嘴型，开口不超过照片。选用“用户张嘴参考”时请另交同人物、同角度照片。',wraplength=850,style='Muted.TLabel').pack(anchor='w')
         box=section(p,'执行与结果','自动流程不会停下来要求逐步确认。检查发现异常时会停止并保留素材与日志；不会把异常当作完成。')
         self.output=tk.StringVar();row=self.row(box);ttk.Entry(row,textvariable=self.output,state='readonly').pack(side='left',fill='x',expand=True);self.button(row,'选择输出目录',self.choose_output,side='left',padx=6);self.button(row,'保存在本次项目',lambda:self.output.set(''),side='left')
         row=self.row(box);self.button(row,'一键制作',self.start,primary=True,side='left');self.button(row,'清空本页输入',self.clear_clicked,side='left',padx=6)
@@ -94,6 +97,8 @@ class QuickPanel:
         self.selected=None;self.record_choice.set('');self.parameter_hint.set('尚未导入参数。')
         self.record_label.set({'photo':'图片轮转参数','portrait':'人物口播参数'}.get(self.route_key(),'输出形式参数'))
         self.refresh_route_records()
+    def subtitle_option_changed(self):
+        if hasattr(self,'manager'):self.manager.persist()
     def refresh_route_records(self):
         route=self.route_key()
         self.quick_records={r['name']+' · '+r['id'][:8]:r for r in self.records.values() if r.get('scope')==route} if hasattr(self,'records') else {}
@@ -257,9 +262,9 @@ class QuickPanel:
         path=filedialog.askdirectory(title='选择本次成品输出目录')
         if path:self.output.set(path);self.manager.persist()
     def snapshot(self):
-        r=self.voices.get(self.voice.get());return {'text':self.text.get('1.0','end').strip(),'images':list(self.images),'voice_id':r['id'] if r else None,'route':{'图片轮转':'photo','人物口播':'portrait'}.get(self.route.get(),''),'record':copy.deepcopy(self.selected),'output_dir':self.output.get(),'mouth_reference':self.reference.get(),'last_result':self.last_result}
+        r=self.voices.get(self.voice.get());return {'text':self.text.get('1.0','end').strip(),'images':list(self.images),'voice_id':r['id'] if r else None,'route':{'图片轮转':'photo','人物口播':'portrait'}.get(self.route.get(),''),'record':copy.deepcopy(self.selected),'output_dir':self.output.get(),'mouth_reference':self.reference.get(),'show_subtitles':bool(self.show_subtitles.get()),'last_result':self.last_result}
     def load(self,data):
-        self.text.delete('1.0','end');self.text.insert('1.0',data.get('text',''));self.images=list(data.get('images',[]));self.refresh_images();self.voice.set(next((k for k,v in self.voices.items() if v['id']==data.get('voice_id')),''));self.route.set({'photo':'图片轮转','portrait':'人物口播'}.get(data.get('route'),''));self.reference.set(data.get('mouth_reference',''));self.output.set(data.get('output_dir',''));self.selected=None;self.record_choice.set('');self.parameter_hint.set('尚未导入参数。')
+        self.text.delete('1.0','end');self.text.insert('1.0',data.get('text',''));self.images=list(data.get('images',[]));self.refresh_images();self.voice.set(next((k for k,v in self.voices.items() if v['id']==data.get('voice_id')),''));self.route.set({'photo':'图片轮转','portrait':'人物口播'}.get(data.get('route'),''));self.reference.set(data.get('mouth_reference',''));self.output.set(data.get('output_dir',''));self.show_subtitles.set(bool(data.get('show_subtitles',True)));self.selected=None;self.record_choice.set('');self.parameter_hint.set('尚未导入参数。')
         if data.get('record'):self.load_record(data['record'])
         self.last_result=data.get('last_result');self.result_hint.set('已手动打开结果：'+self.last_result['directory'] if self.last_result else '尚未执行。');self.voice_note()
     def clear_clicked(self):self.guard(lambda:(self.load({}),self.manager.persist()))
@@ -268,13 +273,13 @@ class QuickPanel:
         try:
             d=self.snapshot()
             if not self.selected:raise ValueError('请选择并载入本次参数。')
-            r=quick_service.prepare(d['text'],d['images'],d['voice_id'],d['route'],self.selected,output_dir=d['output_dir'],mouth_reference=d['mouth_reference'],name=self.manager.name.get())
+            r=quick_service.prepare(d['text'],d['images'],d['voice_id'],d['route'],self.selected,output_dir=d['output_dir'],mouth_reference=d['mouth_reference'],name=self.manager.name.get(),show_subtitles=d['show_subtitles'])
         except Exception as exc:show_error('尚不能开始',str(exc),parent=self.root);return
         self.result_hint.set('已提交，正在排队或执行。完成后通知；无需中间操作。')
         def done(result):
             note=('\n'+result['export_warning']) if result.get('export_warning') else ''
             if result.get('automatic_repairs'):note+='\n'+'\n'.join(result['automatic_repairs'])
-            self.last_result=result;self.result_hint.set('制作完成，技术检查通过，请带声音验收。'+note+'\n'+result['directory']);self.manager.status.set('快捷制作完成，等待人工验收。'+note);self.root.bell();messagebox.showinfo('制作完成','配音、视频、字幕与检查已完成。'+note+'\n请带声音验收：\n'+result['directory'],parent=self.root)
+            self.last_result=result;kind='配音、视频、字幕与检查' if result.get('show_subtitles',True) else '配音、无字幕视频与检查';self.result_hint.set('制作完成，技术检查通过，请带声音验收。'+note+'\n'+result['directory']);self.manager.status.set('快捷制作完成，等待人工验收。'+note);self.root.bell();messagebox.showinfo('制作完成',kind+'已完成。'+note+'\n请带声音验收：\n'+result['directory'],parent=self.root)
         self.manager.run(self,'快捷制作',lambda:quick_service.execute(r,self.manager.log),done,serialized=False,parameters=None)
     def open_result(self,key):
         if not self.last_result:messagebox.showinfo('尚无结果','请先完成一次快捷制作。',parent=self.root);return

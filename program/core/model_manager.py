@@ -5,8 +5,9 @@ at startup or when a repair is requested. Downloads are streamed to temporary
 files, verified, and atomically renamed into the model tree so an interrupted
 download can never look like a usable model.
 """
-from pathlib import Path
-import hashlib,json,os,time,urllib.request,urllib.error,tarfile
+from pathlib import Path, PurePosixPath
+from tempfile import TemporaryDirectory
+import hashlib,json,os,shutil,time,urllib.request,urllib.error,tarfile
 
 PROGRAM=Path(__file__).resolve().parents[1]
 PACKAGE_ROOT=PROGRAM.parent
@@ -65,25 +66,41 @@ def _stream(url,target,group,report,label=''):
     suffix=f'/{expected/1024/1024:.0f}MB' if expected else ''
     report(f'正在下载{group}模型：{label or Path(target).name}（{done/1024/1024:.0f}MB{suffix}）');last=done
 
-def _extract_archive(url,target,group,report):
- base,member=url[8:].split('#',1)
- folder=PACKAGE_ROOT/'cache/model_archives';folder.mkdir(parents=True,exist_ok=True)
+def _archive_path(base,group,report):
+ folder=_target('cache/model_archives');folder.mkdir(parents=True,exist_ok=True)
  archive=folder/(hashlib.sha256(base.encode()).hexdigest()[:24]+'.archive')
  if not archive.is_file():
   partial=archive.with_suffix('.partial')
   try:_stream(base,partial,group,report,'model archive');os.replace(partial,archive)
   except Exception:
    partial.unlink(missing_ok=True);raise
- target=Path(target);partial=target.with_name(target.name+'.partial');target.parent.mkdir(parents=True,exist_ok=True)
- try:
-  with tarfile.open(archive,'r:*') as bundle:
-   item=bundle.getmember(member);source=bundle.extractfile(item)
-   if source is None:raise ValueError('archive member is not a file: '+member)
-   with partial.open('wb') as stream:
-    while block:=source.read(4*1024*1024):stream.write(block)
-  return partial
- except Exception:
-  partial.unlink(missing_ok=True);raise
+ return archive
+
+def _extract_archive(archive,member,partial):
+ with tarfile.open(archive,'r:*') as bundle:
+  item=bundle.getmember(member)
+  if not item.isfile():raise ValueError('archive member is not a file: '+member)
+  with bundle.extractfile(item) as source,partial.open('wb') as stream:
+   shutil.copyfileobj(source,stream)
+
+def _extract_tree(archive,prefix,destination):
+ with tarfile.open(archive,'r|*') as bundle:
+  for item in bundle:
+   if not item.name.startswith(prefix+'/') or item.isdir():continue
+   relative=PurePosixPath(item.name.removeprefix(prefix+'/'))
+   if not item.isfile() or relative.is_absolute() or any(part=='..' or ':' in part or '\\' in part for part in relative.parts):
+    raise ValueError('invalid phoneme data path: '+item.name)
+   path=destination.joinpath(*relative.parts)
+   path.parent.mkdir(parents=True,exist_ok=True)
+   with bundle.extractfile(item) as source,path.open('xb') as stream:
+    shutil.copyfileobj(source,stream)
+
+def _tree_sha256(folder):
+ digest=hashlib.sha256()
+ for path in sorted(folder.rglob('*'),key=lambda path:path.relative_to(folder).as_posix()):
+  if path.is_file():
+   digest.update(f'{path.relative_to(folder).as_posix()}\0{_sha(path)}\n'.encode('utf-8'))
+ return digest.hexdigest()
 
 def _local_source(artifact):
  """Reuse a verified model installation from a sibling workbench package."""
@@ -95,19 +112,20 @@ def _local_source(artifact):
   if candidate.is_file() and candidate.is_relative_to(previous.resolve()):return candidate
  return None
 
-def _valid(artifact):
- path=_target(artifact['path'])
+def _valid_at(path,artifact):
+ if 'tree_sha256' in artifact:
+  return path.is_dir() and _tree_sha256(path)==artifact['tree_sha256']
  if not path.is_file():return False
- if artifact.get('generated'):
-  wav2lip=next((a for a in _manifest()['groups']['portrait']['artifacts'] if Path(a['path']).name=='wav2lip.pth'),None)
-  expected=str((wav2lip or {}).get('sha256','')).lower()
-  record=_load(path,{})
-  return (len(expected)==64 and isinstance(record,dict) and record.get('verified') is True
-          and record.get('expected')==expected and _valid(wav2lip))
+ if 'metadata' in artifact:
+  record=_load(path,None)
+  return isinstance(record,dict) and all(record.get(key)==value for key,value in artifact['metadata'].items())
  size=artifact.get('size')
  if isinstance(size,int) and path.stat().st_size!=size:return False
  digest=artifact.get('sha256')
  return not digest or _sha(path)==str(digest).lower()
+
+def _valid(artifact):
+ return _valid_at(_target(artifact['path']),artifact)
 
 def status(group):
  data=_manifest();info=data['groups'].get(group)
@@ -137,16 +155,43 @@ def _unlock(handle):
 
 def _download(group,artifact,url,report):
  target=_target(artifact['path']);target.parent.mkdir(parents=True,exist_ok=True)
- partial=target.with_name(target.name+'.partial')
+ archive=None
  try:
   if url.startswith('archive+'):
-   generated=_extract_archive(url,target,group,report)
-   if generated!=partial:os.replace(generated,partial)
-  else:_stream(url,partial,group,report,target.name)
-  if not _valid({**artifact,'path':str(partial.relative_to(PACKAGE_ROOT))}):raise ValueError('下载完成但校验不通过：'+target.name)
+   base,member=url[8:].split('#',1)
+   archive=_archive_path(base,group,report)
+  if 'tree_sha256' in artifact:
+   if archive is None:raise ValueError('phoneme data must come from the model archive')
+   with TemporaryDirectory(dir=target.parent,prefix='phoneme-install-') as temporary:
+    staging=Path(temporary)
+    extracted=staging/'phonemes';extracted.mkdir()
+    _extract_tree(archive,member,extracted)
+    if not _valid_at(extracted,artifact):raise ValueError('下载完成但校验不通过：'+target.name)
+    old=staging/'previous'
+    if target.exists():os.replace(target,old)
+    try:os.replace(extracted,target)
+    except OSError:
+     if old.exists():os.replace(old,target)
+     raise
+  else:
+   partial=target.with_name(target.name+'.partial')
+   try:
+    if archive is not None:_extract_archive(archive,member,partial)
+    else:_stream(url,partial,group,report,target.name)
+    if not _valid_at(partial,artifact):raise ValueError('下载完成但校验不通过：'+target.name)
+    os.replace(partial,target)
+   finally:partial.unlink(missing_ok=True)
+ except (tarfile.TarError,KeyError,EOFError,ValueError):
+  if archive is not None:archive.unlink(missing_ok=True)
+  raise
+
+def _write_metadata(artifact):
+ target=_target(artifact['path']);target.parent.mkdir(parents=True,exist_ok=True)
+ partial=target.with_name(target.name+'.partial')
+ try:
+  partial.write_text(json.dumps(artifact['metadata'],indent=2)+'\n',encoding='utf-8')
   os.replace(partial,target)
- except Exception:
-  partial.unlink(missing_ok=True);raise
+ finally:partial.unlink(missing_ok=True)
 
 def ensure(group,report=print):
  """Install and return the requested model files; never runs at import time."""
@@ -158,26 +203,16 @@ def ensure(group,report=print):
   overrides=_overrides();missing=[]
   for artifact in info.get('artifacts',[]):
    if _valid(artifact):continue
-   if artifact.get('generated'):
-    target=_target(artifact['path']);target.parent.mkdir(parents=True,exist_ok=True)
-    wav2lip=next((a for a in info.get('artifacts',[]) if Path(a['path']).name=='wav2lip.pth'),None)
-    expected=str((wav2lip or {}).get('sha256','')).lower()
-    if len(expected)!=64 or not _valid(wav2lip):raise ValueError('口型模型缺少固定 SHA256 或文件校验未通过，无法生成完整性记录。')
-    partial=target.with_name(target.name+'.partial')
-    try:
-     partial.write_text(json.dumps({'schema':1,'verified':True,'expected':expected},indent=2),encoding='utf-8')
-     os.replace(partial,target)
-    finally:partial.unlink(missing_ok=True)
-    if not _valid(artifact):raise RuntimeError('无法生成模型完整性记录：'+str(target))
+   if 'metadata' in artifact:
+    _write_metadata(artifact)
     continue
    name=Path(artifact['path']).name;local=_local_source(artifact)
    if local:
     target=_target(artifact['path']);target.parent.mkdir(parents=True,exist_ok=True);partial=target.with_name(target.name+'.partial')
     report(f"正在复用本机已有的{info.get('label',group)}：{name}")
     try:
-     import shutil
      shutil.copy2(local,partial)
-     if not _valid({**artifact,'path':str(partial.relative_to(PACKAGE_ROOT))}):raise ValueError('本机已有文件校验不通过。')
+     if not _valid_at(partial,artifact):raise ValueError('本机已有文件校验不通过。')
      os.replace(partial,target);continue
     except Exception:
      partial.unlink(missing_ok=True)
@@ -185,7 +220,7 @@ def ensure(group,report=print):
    if not url:missing.append(artifact['path']);continue
    report(f"正在准备{info.get('label',group)}，首次使用会下载模型文件……")
    try:_download(group,artifact,url,report)
-   except (urllib.error.URLError,TimeoutError,OSError,ValueError) as exc:raise RuntimeError(f"{info.get('label',group)}下载失败：{exc}。网络恢复后可直接重试，已完成的文件会保留。") from exc
+   except (urllib.error.URLError,TimeoutError,OSError,ValueError,tarfile.TarError,KeyError,EOFError) as exc:raise RuntimeError(f"{info.get('label',group)}下载失败：{exc}。网络恢复后可直接重试，已完成的文件会保留。") from exc
   if missing:
    source=OVERRIDES.relative_to(PACKAGE_ROOT).as_posix()
    raise ModelInstallRequired(f"{info.get('label',group)}尚未安装。请在{source}填写对应下载地址后重试；需要文件：{', '.join(missing)}")

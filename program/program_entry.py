@@ -6,9 +6,9 @@ sys.pycache_prefix=str(Path(__file__).resolve().parent.parent/'cache/pycache')
 def prepare_models():
     """Show a small first-run window while every model group is downloaded and verified."""
     import tkinter as tk
-    from tkinter import ttk,messagebox
+    from tkinter import ttk
     from model_manager import ensure_all
-    events=queue.Queue();root=tk.Tk();root.title('Local Media Studio 7.0 · Startup preparation');root.geometry('620x190');root.resizable(False,False)
+    events=queue.Queue();root=tk.Tk();root.title('Local Media Studio 7.1 · 启动准备');root.geometry('620x190');root.resizable(False,False)
     root.protocol('WM_DELETE_WINDOW',lambda:root.destroy())
     frame=ttk.Frame(root,padding=24);frame.pack(fill='both',expand=True)
     ttk.Label(frame,text='正在准备本地模型',font=('Microsoft YaHei UI',15,'bold')).pack(anchor='w')
@@ -38,7 +38,8 @@ def prepare_models():
     if result.get('ok'):return True
     error=result.get('error',RuntimeError('启动准备被取消。'))
     log=Path(__file__).resolve().parent.parent/'logs/startup_preflight.log';log.parent.mkdir(parents=True,exist_ok=True);log.write_text(traceback.format_exc() if not isinstance(error,Exception) else ''.join(traceback.format_exception(error)),encoding='utf-8')
-    messagebox.showerror('启动准备未完成','模型尚未全部准备好，工作台不会继续启动。\n\n请检查网络、磁盘空间和模型下载源配置，然后重新打开工作台。\n\n详细记录：'+str(log))
+    message='模型尚未全部准备好。\n\n'+str(error)+'\n\n请检查网络、磁盘空间或模型下载源，然后重新打开工作台。\n\n详细记录：'+str(log)
+    ctypes.windll.user32.MessageBoxW(0,message,'启动准备未完成',0x10)
     return False
 
 try:

@@ -36,29 +36,48 @@
       "artifacts": [
         {
           "path": "models/subtitle/faster-whisper-small/config.json",
-          "url": "https://huggingface.co/Systran/faster-whisper-small/resolve/main/config.json?download=true",
-          "size": 2370
+          "url": "https://huggingface.co/Systran/faster-whisper-small/resolve/536b0662742c02347bc0e980a01041f333bce120/config.json?download=true",
+          "size": 2370,
+          "sha256": "b55496ac7940a7ae47d2c01eab40edfd8701feec1229d9cce3b40014383fb828"
         },
         {
           "path": "models/subtitle/faster-whisper-small/model.bin",
-          "url": "https://huggingface.co/Systran/faster-whisper-small/resolve/main/model.bin?download=true",
-          "size": 483546902
+          "url": "https://huggingface.co/Systran/faster-whisper-small/resolve/536b0662742c02347bc0e980a01041f333bce120/model.bin?download=true",
+          "size": 483546902,
+          "sha256": "3e305921506d8872816023e4c273e75d2419fb89b24da97b4fe7bce14170d671"
         },
         {
           "path": "models/subtitle/faster-whisper-small/tokenizer.json",
-          "url": "https://huggingface.co/Systran/faster-whisper-small/resolve/main/tokenizer.json?download=true",
-          "size": 2203239
+          "url": "https://huggingface.co/Systran/faster-whisper-small/resolve/536b0662742c02347bc0e980a01041f333bce120/tokenizer.json?download=true",
+          "size": 2203239,
+          "sha256": "fb7b63191e9bb045082c79fd742a3106a12c99513ab30df4a0d47fa6cb6fd0ab"
         },
         {
           "path": "models/subtitle/faster-whisper-small/vocabulary.txt",
-          "url": "https://huggingface.co/Systran/faster-whisper-small/resolve/main/vocabulary.txt?download=true",
-          "size": 459861
+          "url": "https://huggingface.co/Systran/faster-whisper-small/resolve/536b0662742c02347bc0e980a01041f333bce120/vocabulary.txt?download=true",
+          "size": 459861,
+          "sha256": "34ce3fe1c5041027b3f8d42912270993f986dbc4bb34cf27f951e34a1e453913"
+        },
+        {
+          "path": "models/subtitle/faster-whisper-small/integrity.json",
+          "metadata": {
+            "schema": 1,
+            "repository": "https://huggingface.co/Systran/faster-whisper-small",
+            "revision": "536b0662742c02347bc0e980a01041f333bce120",
+            "license": "MIT",
+            "files": {
+              "config.json": "b55496ac7940a7ae47d2c01eab40edfd8701feec1229d9cce3b40014383fb828",
+              "model.bin": "3e305921506d8872816023e4c273e75d2419fb89b24da97b4fe7bce14170d671",
+              "tokenizer.json": "fb7b63191e9bb045082c79fd742a3106a12c99513ab30df4a0d47fa6cb6fd0ab",
+              "vocabulary.txt": "34ce3fe1c5041027b3f8d42912270993f986dbc4bb34cf27f951e34a1e453913"
+            }
+          }
         }
       ]
     },
     "voice_qwen": {
       "label": "Qwen配音模型",
-      "source_note": "需要与随包 qwen-tts 运行器匹配的 GGUF 与 mmproj 文件，请在model_download_sources.json填入直链。",
+      "source_note": "GGUF 与 mmproj 须与随包 qwen-tts 运行器匹配。",
       "artifacts": [
         {
           "path": "models/voice/candidates/qwen06-llamacpp/mmproj.gguf",
@@ -74,7 +93,7 @@
     },
     "voice_zipvoice": {
       "label": "ZipVoice配音模型",
-      "source_note": "Emilia权重受非商业测试许可约束，请确认许可后在model_download_sources.json填入直链。",
+      "source_note": "Emilia 权重受非商业测试许可约束。",
       "artifacts": [
         {
           "path": "models/voice/candidates/zipvoice-fp32/sherpa-onnx-zipvoice-distill-fp32-zh-en-emilia/decoder.onnx",
@@ -100,12 +119,16 @@
           "path": "models/voice/candidates/zipvoice-int8/vocos_24khz.onnx",
           "sha256": "bcb3b970e384161c4d634f0bb9e999ff1c471b34c9bc0b1049a5014065ed3cc0",
           "size": 54157409
+        },
+        {
+          "path": "models/voice/candidates/zipvoice-fp32/sherpa-onnx-zipvoice-distill-fp32-zh-en-emilia/espeak-ng-data",
+          "tree_sha256": "1c2ec0747e40d30f8f123b65c93dcba64f2404195b3344ed614df41237df8332"
         }
       ]
     },
     "portrait": {
       "label": "人物口播模型",
-      "source_note": "人物模型来源和许可各不相同，请在model_download_sources.json填入经过确认的直链。",
+      "source_note": "人物模型许可各不相同，详见程序内许可。",
       "artifacts": [
         {
           "path": "models/portrait/Wav2Lip-personal-research-only/wav2lip.pth",
@@ -114,7 +137,11 @@
         },
         {
           "path": "models/portrait/Wav2Lip-personal-research-only/integrity.json",
-          "generated": true
+          "metadata": {
+            "schema": 1,
+            "verified": true,
+            "expected": "b78b681b68ad9fe6c6fb1debc6ff43ad05834a8af8a62ffc4167b7b34ef63c37"
+          }
         },
         {
           "path": "models/portrait/facexlib/alignment_WFLW_4HG.pth",
@@ -159,5 +186,5 @@
       ]
     }
   },
-  "version": "7.0.0-full-model-preload"
+  "version": "7.1.0-full-model-preload"
 }

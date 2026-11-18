@@ -10,11 +10,12 @@ from portable_bootstrap import pack_paths,unpack_paths
 import settings_library as library
 
 def stamp():return datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')
-def prepare(text,images,voice_id,route,record,*,output_dir='',mouth_reference='',name=''):
+def prepare(text,images,voice_id,route,record,*,output_dir='',mouth_reference='',name='',show_subtitles=True):
     from PIL import Image
     import voice_store as voices
     if not isinstance(text,str) or not text.strip():raise ValueError('请填写需要朗读的正文。')
     if route not in ('photo','portrait'):raise ValueError('请选择图片轮转或人物口播。')
+    if not isinstance(show_subtitles,bool):raise ValueError('显示字幕选项必须是布尔值。')
     if not images or (route=='portrait' and len(images)!=1):raise ValueError('人物口播请提交一张照片；图片轮转可提交一张或多张。')
     # A quick run is bound to one output route. Legacy 5.5 workflow records
     # are projected to that route for old scripts/tasks; the UI only exposes
@@ -40,21 +41,27 @@ def prepare(text,images,voice_id,route,record,*,output_dir='',mouth_reference=''
     reference=None
     if ref:
         reference=inputs/('张嘴参考'+ref.suffix);shutil.copy2(ref,reference)
-    steps=[{'id':'speech','action':'speech','voice_id':voice_id,'text_file':str(script),'segmentation':params.get('speech',{}).get('segmentation','auto')},
-           {'id':'captions','action':'align','audio':'@speech.audio','text_file':'@speech.text_file','method':'verified','route':route}]
+    steps=[{'id':'speech','action':'speech','voice_id':voice_id,'text_file':str(script),'segmentation':params.get('speech',{}).get('segmentation','auto')}]
     if route=='photo':steps.append({'id':'picture','action':'photo','audio':'@speech.audio','images':pictures,**params['photo'],'route':route});video='@picture.video'
     else:
         p=params['portrait'];steps.append({'id':'prepare','action':'portrait_prepare','image':pictures[0],'framing':p['framing'],'engine':p['engine'],'blink':p['blink']})
         step={'id':'portrait','action':'portrait','audio':'@speech.audio','text_file':'@speech.text_file','settings':'@prepare.settings','route':route}
         if reference:step['mouth_reference']=str(reference)
         steps.append(step);video='@portrait.video'
-    steps.extend([{'id':'final','action':'export','video':video,'audio':'@speech.audio','subtitles':'@captions.subtitles','style':params['subtitles'],'review':'ai_checked','route':route},
-                  {'id':'check','action':'check','video':'@final.video','audio':'@speech.audio','subtitles':'@captions.subtitles','text_file':'@speech.text_file','route':route}])
+    if show_subtitles:
+        steps.append({'id':'captions','action':'align','audio':'@speech.audio','text_file':'@speech.text_file','method':'verified','route':route})
+    final={'id':'final','action':'export','video':video,'audio':'@speech.audio','review':'ai_checked','route':route}
+    check={'id':'check','action':'check','video':'@final.video','audio':'@speech.audio','route':route}
+    if show_subtitles:
+        final.update(subtitles='@captions.subtitles',style=params['subtitles'])
+        check.update(subtitles='@captions.subtitles',text_file='@speech.text_file')
+    steps.extend([final,check])
     task={'schema':1,'name':name.strip() or ('快捷图片视频' if route=='photo' else '快捷人物口播'),'steps':steps}
     from automation import validate
     validate(task)
     submission={'schema':1,'task':task,'record':record,'voice':info,'parameters':params,'route':route,'output_dir':str(export) if export else '',
-                'quick':{'text':text.strip(),'images':pictures,'voice_id':voice_id,'route':route,'record_id':record['id'],'record':record,'output_dir':str(export) if export else '', 'mouth_reference':str(reference) if reference else '', 'last_result':None}}
+                'show_subtitles':show_subtitles,
+                'quick':{'text':text.strip(),'images':pictures,'voice_id':voice_id,'route':route,'record_id':record['id'],'record':record,'output_dir':str(export) if export else '', 'mouth_reference':str(reference) if reference else '', 'show_subtitles':show_subtitles, 'last_result':None}}
     library.atomic(area/'提交记录.json',submission);library.atomic(area/'执行任务.json',task)
     return area/'提交记录.json'
 
@@ -76,7 +83,9 @@ def publish_outputs(results,area,data,log):
     tag='成品-'+stamp()+'-'+uuid.uuid4().hex[:6]
     def publish(root):
         destination=Path(root)/tag;destination.mkdir(parents=True)
-        items=[(final,'视频.mp4'),(Path(results['speech']['audio']),'配音.wav'),(Path(results['speech']['text_file']),'正文.txt'),(Path(results['captions']['subtitles']),'字幕.srt')]
+        items=[(final,'视频.mp4'),(Path(results['speech']['audio']),'配音.wav'),(Path(results['speech']['text_file']),'正文.txt')]
+        if results.get('captions',{}).get('subtitles'):
+            items.append((Path(results['captions']['subtitles']),'字幕.srt'))
         for source,name in items:export_copy(source,destination/name,log,('.ass','.layout.json') if source==final else ())
         shutil.copytree(check.parent,destination/'检查报告')
         page=destination/'检查报告'/check.name
@@ -116,9 +125,9 @@ def run_submission(path):
         if report['status']!='completed' or runner.results['check']['status']!='passed':raise ValueError('制作或技术检查未通过，未发布完成结果。')
         # All media remains in the project; a failed external copy never destroys it.
         check=Path(runner.results['check']['report'])
-        publication={'version':'5.5','record':data['record'],'parameters':data['parameters'],'voice':data['voice'],'project':str(runner.project),'human_review_required':True,'output_dir':data.get('output_dir','')}
+        publication={'version':'5.5','record':data['record'],'parameters':data['parameters'],'voice':data['voice'],'project':str(runner.project),'human_review_required':True,'output_dir':data.get('output_dir',''),'show_subtitles':bool(data.get('show_subtitles',True))}
         destination,export_warning=publish_outputs(runner.results,area,publication,automation.log)
-        result={'status':'completed','video':str(destination/'视频.mp4'),'audio':str(destination/'配音.wav'),'subtitles':str(destination/'字幕.srt'),'report':str(destination/'检查报告'/check.name),'directory':str(destination),'project':str(runner.project),'usage_record':str(usage),'human_review_required':True}
+        result={'status':'completed','video':str(destination/'视频.mp4'),'audio':str(destination/'配音.wav'),'subtitles':str(destination/'字幕.srt') if data.get('show_subtitles',True) else '', 'show_subtitles':bool(data.get('show_subtitles',True)),'report':str(destination/'检查报告'/check.name),'directory':str(destination),'project':str(runner.project),'usage_record':str(usage),'human_review_required':True}
         if export_warning:result['export_warning']=export_warning
         result['automatic_repairs']=automatic_repair_notes(runner.results)
         runner.gui['quick']['last_result']=result;runner.persist();library.finish_usage(usage,'completed',result=result);library.atomic(area/'完成结果.json',result);automation.log('快捷制作完成，技术检查通过，等待人工验收。');return 0

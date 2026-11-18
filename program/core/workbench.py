@@ -55,7 +55,7 @@ class Workbench:
    set_app_icons(window,ROOT/'resources/ui');self.window_icons=window._app_icon_photos
   except Exception as error:
    LOGS.mkdir(parents=True,exist_ok=True)
-   with (LOGS/'界面图标.log').open('a',encoding='utf-8') as log:log.write(str(error)+'\n')
+   with (LOGS/'ui_icon.log').open('a',encoding='utf-8') as log:log.write(str(error)+'\n')
  def button(self,parent,label,callback,primary=False,**pack):
   b=ttk.Button(parent,text=label,command=callback,style='Primary.TButton' if primary else 'TButton');b.pack(**pack);self.buttons.append(b);return b
  def bar(self,parent):
@@ -264,7 +264,7 @@ def main():
  root=tk.Tk()
  try:Workbench(root);root.mainloop()
  except Exception:
-  (LOGS/'启动错误.log').write_text(traceback.format_exc(),encoding='utf-8');show_error('启动未完成','请查看根目录“日志”文件夹中的启动错误.log。');root.destroy();raise
+  (LOGS/'startup_error.log').write_text(traceback.format_exc(),encoding='utf-8');show_error('启动未完成','请查看 logs/startup_error.log。');root.destroy();raise
 
 if __name__=='__main__':main()
 

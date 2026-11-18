@@ -1,13 +1,5 @@
-# Models
+# Model downloads
 
-Model weights are intentionally excluded from the GitHub source package.
+Local Media Studio installs and verifies the five required model groups at startup after preparing the runtime. Download locations and pinned hashes are configured in program/config/model_download_sources.json and program/config/model_download_manifest.json. ZipVoice also needs the phoneme data directory from its FP32 archive.
 
-On the first launch, the startup-preparation window downloads and verifies all five model groups before opening the workbench:
-
-- `voice_qwen`
-- `voice_zipvoice`
-- `subtitle_base`
-- `subtitle_small`
-- `portrait`
-
-Sources are configured in `program/config/model_download_sources.json`; the manifest and expected sizes/SHA256 values are in `program/config/model_download_manifest.json`. Do not commit downloaded weights, cache files, projects, logs or user data to the source repository.
+Keep downloaded weights, installation receipts and generated verification records out of source control. See program/licenses/READ_FIRST.txt for model-specific restrictions.

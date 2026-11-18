@@ -6,6 +6,7 @@ from portable_bootstrap import pack_paths,unpack_paths
 from .config import inside,sha,template_path,signature,duration_wav,validate_blink
 from .service import call,PY
 from .detail_service import pins
+from .source_articulation import MODE as SOURCE_MOTION
 
 RECIPE='photo-lip-speech-v2'
 
@@ -41,12 +42,14 @@ def caches_for(audio,settings,model_pins):
  mouth_key={**base,'audio':audio_sha,'fps':30,'wav2lip':{k:v for k,v in model_pins.items() if 'wav2lip.pth' in k or 'alignment_WFLW' in k},'input_code':code_hash('detail_worker.py',['__init__','predict_stage']),'geometry_code':code_hash('photo_worker.py',['geometry_stage']),'precision':'FP32'}
  eye_key={**base,'models':{k:v for k,v in model_pins.items() if 'LivePortrait/' in k},'generator_code':code_hash('detail_worker.py',['blink_stage']),'retarget_code':code_hash('photo_worker.py',['blink_stage','patch_path']),'closure_profile':sha(PROGRAM/'core/portrait/blink_timing.py')}
  ref=settings.get('mouth_reference');reference_sha=sha(inside(ref)) if ref else 'auto';ref_key={**base,'framing':settings['framing'],'reference':reference_sha,'method':code_hash('photo_worker.py',['reference_stage']),'models':{k:v for k,v in model_pins.items() if 'GFPGAN' in k or 'alignment_WFLW' in k or 'wav2lip.pth' in k}}
+ if not ref:ref_key['original_mouth_detector']=sha(PROGRAM/'core/portrait/original_mouth.py')
  root=CACHE/'portrait';mouth=root/'口型'/key(mouth_key);eye=root/'眼睑'/key(eye_key);reference=root/'口腔参考'/key(ref_key)
  alignment_key={'audio':audio_sha,'script':sha(inside(settings['text_file'])),'model':sha(PROGRAM.parent/'models/subtitle/faster-whisper-base/model.bin'),'code':sha(PROGRAM/'core/portrait/speech_alignment.py'),'precision':'FP32'}
  from recognition_support import review_descriptor
  alignment_key['review_model']=review_descriptor()
  alignment=root/'transcript_timing'/key(alignment_key)
  render_key={'recipe':RECIPE,'alignment_key':key(alignment_key),'mouth':key(mouth_key),'eye':key(eye_key),'reference':key(ref_key),'script':sha(inside(settings['text_file'])),'blink':validate_blink(settings['blink'],duration_wav(audio)),'framing':settings['framing'],'worker':sha(PROGRAM/'core/portrait/photo_worker.py'),'texture':sha(PROGRAM/'core/portrait/photo_texture.py'),'constraints':sha(PROGRAM/'core/portrait/speech_constraints.py'),'alignment':sha(PROGRAM/'core/portrait/speech_alignment.py'),'alignment_model':sha(PROGRAM.parent/'models/subtitle/faster-whisper-base/model.bin')}
+ render_key['source_articulation']=sha(PROGRAM/'core/portrait/source_articulation.py')
  render=root/'画面'/key(render_key)
  for p in (mouth,eye,reference,render,alignment):p.mkdir(parents=True,exist_ok=True)
  return mouth,eye,reference,render,alignment,{'source':image_sha,'landmarks':lm_sha,'audio':audio_sha,'reference':reference_sha,'render_key':render_key}
@@ -82,7 +85,18 @@ def build(project,audio,settings,output,log,preview=None):
  def stage(name,folder,needed):
   if valid(folder,name,needed):log('复用已校验缓存：'+name);return
   call([PY,'-X','utf8','-u',worker,'--job',job,'--stage',name],log);receipt(folder,name,needed)
- stage('predict',mouth,['predictions.npy','analysis16k.f32']);stage('geometry',mouth,['raw-landmarks.npy']);stage('reference',reference,['anchor.png','landmarks.npy','reference.json']);stage('plan',render,['plan.npz','screening.json'])
+ if not ref_template:
+  log('正在检查原图是否已张嘴露齿。')
+  stage('source-probe',reference,['source-mouth.json'])
+  if read(reference/'source-mouth.json')['method']=='original_photo':
+   data['mouth_motion']=SOURCE_MOTION
+   save(job,data)
+   log('原图已露齿，使用原图口型和牙齿，跳过模型生成张嘴画面。')
+ if data.get('mouth_motion')!=SOURCE_MOTION:
+  stage('predict',mouth,['predictions.npy','analysis16k.f32'])
+  stage('geometry',mouth,['raw-landmarks.npy'])
+  stage('reference',reference,['anchor.png','landmarks.npy','reference.json'])
+ stage('plan',render,['plan.npz','screening.json'])
  from .blink_timing import starts,closure
  import numpy as np
  needed_starts=starts(data['blink'],round(duration_wav(audio)*30),ids['audio']+ids['source']);states=sorted({closure(k,[0]) for k in range(10)}-{0.}) if needed_starts else []
@@ -95,7 +109,12 @@ def burn_cached(video,subtitles,output,log):
  job=inside(meta['job'])
  if meta.get('job_sha256') and meta['job_sha256']!=sha(job):raise ValueError('母版对应的制作设置已改变，请重新生成母版。')
  data=read(job);validate_job_inputs(data)
- for folder,stage,names in [(inside(data['cache']),'geometry',['raw-landmarks.npy']),(inside(data['ref_cache']),'reference',['anchor.png','landmarks.npy','reference.json']),(inside(data['render_cache']),'plan',['plan.npz','screening.json'])]:
+ stages=[(inside(data['render_cache']),'plan',['plan.npz','screening.json'])]
+ if data.get('mouth_motion')==SOURCE_MOTION:
+  stages.append((inside(data['ref_cache']),'source-probe',['source-mouth.json']))
+ else:
+  stages.extend([(inside(data['cache']),'geometry',['raw-landmarks.npy']),(inside(data['ref_cache']),'reference',['anchor.png','landmarks.npy','reference.json'])])
+ for folder,stage,names in stages:
   if not valid(folder,stage,names):raise ValueError('原始画面缓存缺失，请重新生成母版。')
  from .blink_timing import starts,closure
  import numpy as np

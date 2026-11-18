@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "version": "7.0.0",
-  "description": "Verified sources for full preload. ZipVoice archive members are extracted and checked against the manifest; portrait integrity.json is generated from the pinned Wav2Lip hash.",
+  "version": "7.1.0",
+  "description": "ZipVoice archive files and phoneme data are extracted and verified; integrity records are generated from pinned metadata in the manifest.",
   "voice_qwen": {
     "mmproj.gguf": "https://huggingface.co/mradermacher/Qwen3-TTS-12Hz-0.6B-Base-GGUF/resolve/main/Qwen3-TTS-12Hz-0.6B-Base.mmproj-Q8_0.gguf?download=true",
     "model.gguf": "https://huggingface.co/mradermacher/Qwen3-TTS-12Hz-0.6B-Base-GGUF/resolve/main/Qwen3-TTS-12Hz-0.6B-Base.Q8_0.gguf?download=true"
@@ -11,7 +11,8 @@
     "encoder.onnx": "archive+https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/sherpa-onnx-zipvoice-distill-fp32-zh-en-emilia.tar.bz2#sherpa-onnx-zipvoice-distill-fp32-zh-en-emilia/encoder.onnx",
     "lexicon.txt": "archive+https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/sherpa-onnx-zipvoice-distill-fp32-zh-en-emilia.tar.bz2#sherpa-onnx-zipvoice-distill-fp32-zh-en-emilia/lexicon.txt",
     "tokens.txt": "archive+https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/sherpa-onnx-zipvoice-distill-fp32-zh-en-emilia.tar.bz2#sherpa-onnx-zipvoice-distill-fp32-zh-en-emilia/tokens.txt",
-    "vocos_24khz.onnx": "https://github.com/k2-fsa/sherpa-onnx/releases/download/vocoder-models/vocos_24khz.onnx"
+    "vocos_24khz.onnx": "https://github.com/k2-fsa/sherpa-onnx/releases/download/vocoder-models/vocos_24khz.onnx",
+    "espeak-ng-data": "archive+https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/sherpa-onnx-zipvoice-distill-fp32-zh-en-emilia.tar.bz2#sherpa-onnx-zipvoice-distill-fp32-zh-en-emilia/espeak-ng-data"
   },
   "portrait": {
     "wav2lip.pth": "https://huggingface.co/Nekochu/Wav2Lip/resolve/main/wav2lip.pth?download=true",

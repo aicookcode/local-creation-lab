@@ -7,6 +7,19 @@ from portrait.config import inside
 from portrait.blink_timing import starts,closure
 from portrait.speech_constraints import activity,constrain,audit,write_provenance
 from portrait.photo_texture import PhotoTexture
+from portrait.original_mouth import visible_teeth
+from portrait.source_articulation import MODE as SOURCE_MOTION, build_plan as source_plan
+
+def probe_source_mouth(job):
+ data=read(inside(job))
+ assets=inside(data['template']).parent
+ image=np.asarray(Image.open(assets/'portrait.png').convert('RGB'))
+ landmarks=np.load(assets/'landmarks68.npy',allow_pickle=False)
+ evidence=visible_teeth(image,landmarks)
+ result={'method':'original_photo' if evidence else 'fallback',
+         'source_sha256':data['source_sha256'],'oral_detail_is_model_inferred':not bool(evidence)}
+ if evidence:result.update(evidence)
+ save(inside(data['ref_cache'])/'source-mouth.json',result)
 
 class Worker(Engine):
  def __init__(self,job):
@@ -47,8 +60,15 @@ class Worker(Engine):
    allpoints.append(part);self.progress('提取发音口型几何',b,self.frames)
   save_array(self.cache/'raw-landmarks.npy',np.concatenate(allpoints))
  def reference_stage(self):
-  self.ref_cache.mkdir(parents=True,exist_ok=True);frame_to_source=None
-  if self.job.get('reference_template'):
+  self.ref_cache.mkdir(parents=True,exist_ok=True)
+  source_evidence=None
+  if not self.job.get('reference_template'):
+   source_evidence=visible_teeth(self.src,self.lmk)
+  if source_evidence:
+   ref=self.src;lm=self.lmk;M=np.eye(2,3,dtype=np.float32)
+   info={'method':'original_photo','oral_detail_is_model_inferred':False,**source_evidence}
+   print('原图已清晰露齿，直接使用原图口腔纹理。',flush=True)
+  elif self.job.get('reference_template'):
    template=inside(self.job['reference_template']);lm=np.load(template.parent/'landmarks68.npy').astype(np.float32);ref=np.asarray(Image.open(template.parent/'portrait.png').convert('RGB')).astype(np.float32)
    ids=[36,39,42,45,30];M=cv2.estimateAffinePartial2D(lm[ids],self.lmk[ids],method=cv2.LMEDS)[0]
    if M is None:raise ValueError('张嘴参考无法对齐，请选择同人物、同角度的清晰照片。')
@@ -56,6 +76,7 @@ class Worker(Engine):
    if residual>.08:raise ValueError('参考图角度与人物照片差异过大，无法稳定对齐口腔。')
    info={'method':'user_reference','reference_sha256':sha(template.parent/'portrait.png'),'geometry_residual_fraction':residual,'identity_must_be_confirmed_by_user':True}
   else:
+   print('原图未检测到清晰牙齿，正在准备自动口腔参考。',flush=True)
    pred=np.load(self.cache/'predictions.npy',mmap_mode='r');points=np.load(self.cache/'raw-landmarks.npy');gap=np.linalg.norm(points[:,62]-points[:,66],axis=1);good=(self.speech_activity['gate']>.9);scores=np.where(good,gap,-1);i=int(scores.argmax())
    if scores[i]<1.2:raise ValueError('本次配音没有可靠张嘴参考帧，请提供同人物的张嘴参考照片。')
    inv=cv2.invertAffineTransform(self.B);yy,xx=np.mgrid[:512,:512].astype(np.float32);sx=inv[0,0]*xx+inv[0,1]*yy+inv[0,2];sy=inv[1,0]*xx+inv[1,1]*yy+inv[1,2];aligned=cv2.remap(self.src,sx,sy,cv2.INTER_LANCZOS4,borderMode=cv2.BORDER_REFLECT_101);ax=self.A[0,0]*sx+self.A[0,1]*sy+self.A[0,2];ay=self.A[1,0]*sx+self.A[1,1]*sy+self.A[1,2];neural=cv2.remap(np.asarray(pred[i])*255,ax,ay,cv2.INTER_LANCZOS4,borderMode=cv2.BORDER_REFLECT_101)[:,:,::-1]
@@ -73,6 +94,9 @@ class Worker(Engine):
   if opening<1.8:raise ValueError('参考图口腔开合不足，无法提供稳定牙齿/口腔细节。请换一张张嘴参考。')
   save_image(self.ref_cache/'anchor.png',np.clip(pixels,0,255).astype(np.uint8));save_array(self.ref_cache/'landmarks.npy',landmarks.astype(np.float32));info.update(source_sha256=self.job['source_sha256'],opening_final_px=opening);save(self.ref_cache/'reference.json',info)
  def plan_stage(self):
+  if self.job.get('mouth_motion')==SOURCE_MOTION:
+   self.plan_source_stage()
+   return
   from portrait.speech_constraints import _smooth
   points=np.load(self.cache/'raw-landmarks.npy');w=np.linalg.norm(points[:,54]-points[:,48],axis=1);c=(points[:,48]+points[:,54])/2;u=(points[:,54]-points[:,48])/w[:,None];v=np.stack([-u[:,1],u[:,0]],1);normal=np.einsum('nij,nj->ni',points-c[:,None],v);gap=np.maximum(normal[:,[67,66,65]]-normal[:,[61,62,63]],0).mean(1);raw=np.maximum(gap-.3,0);active=self.speech_activity['gate']>.9;mouth_scale=self.mouthw*self.scale/90;peak=self.mouthw*self.scale*.155
   gain=peak/max(float(np.percentile(raw[active],97)) if active.any() else float(raw.max()),1);opening=raw*gain;quiet=self.speech_activity['gate']==0;rest=float(np.median(w[quiet])) if quiet.any() else float(np.median(w));ratio=np.clip(w/rest,.91,1.045);top=normal[:,[61,62,63]].mean(1);rest_top=float(np.median(top[quiet])) if quiet.any() else float(np.percentile(top,75));raise_px=np.clip((top-rest_top)*gain,-2.4*mouth_scale,0)
@@ -85,12 +109,35 @@ class Worker(Engine):
   save(self.render_cache/'screening.json',{'audit':check,'delay_frames':int(delay),'envelope_diagnostic':lag_scores,'mouth_scale':mouth_scale,'human_review_required':True})
   if check['status']!='passed_constraints':raise ValueError('发声口型仍有可疑时间段，已保存筛查记录，停止编码；请检查原稿与配音。')
   dest=self.render_cache/'plan.npz';pending=dest.with_name('plan.pending.npz');np.savez(pending,**{k:v for k,v in plan.items() if isinstance(v,np.ndarray)});pending.replace(dest)
+ def plan_source_stage(self):
+  evidence=read(self.ref_cache/'source-mouth.json')
+  alignment=read(inside(self.job['alignment_cache'])/'alignment.json')
+  opening=evidence['opening_photo_px']*self.scale
+  plan=source_plan(self.pcm,self.frames,alignment['chars'],opening)
+  scale=self.mouthw*self.scale/90
+  check=audit(self.pcm,16000,plan['opening'],plan['width_ratio'],plan['upper_raise'],
+              protected=plan['protected'],mouth_scale=scale)
+  save(self.render_cache/'screening.json',{'audit':check,'delay_frames':0,'mouth_scale':scale,
+       'mouth_motion':SOURCE_MOTION,'source_opening_limit_px':opening,'human_review_required':True})
+  if check['status']!='passed_constraints':
+   raise ValueError('发声口型仍有可疑时间段，已保存筛查记录，停止编码；请检查原稿与配音。')
+  pending=self.render_cache/'plan.pending.npz'
+  np.savez(pending,**plan)
+  pending.replace(self.render_cache/'plan.npz')
  def encode(self,output,ass=None):
   output=inside(output)
   if output.exists():raise FileExistsError('输出已存在，请另存。')
   plan=dict(np.load(self.render_cache/'plan.npz',allow_pickle=False));screen=read(self.render_cache/'screening.json');scale=screen['mouth_scale'];check=audit(self.pcm,16000,plan['opening'],plan['width_ratio'],plan['upper_raise'],protected=plan['protected'],mouth_scale=scale)
   if check['status']!='passed_constraints':raise ValueError('轨迹复核未通过，不能编码成片。')
-  renderer=PhotoTexture(self,np.asarray(Image.open(self.ref_cache/'anchor.png').convert('RGB')),np.load(self.ref_cache/'landmarks.npy'),plan);output.parent.mkdir(parents=True,exist_ok=True);pending=output.with_name(output.stem+'.pending.mp4');cmd=[str(FF),'-v','error','-y','-f','rawvideo','-pix_fmt','rgb24','-s','1080x1920','-r','30','-i','pipe:0','-ss',str(self.begin/30),'-i',str(self.audio)]
+  source_motion=self.job.get('mouth_motion')==SOURCE_MOTION
+  reference=read(self.ref_cache/('source-mouth.json' if source_motion else 'reference.json'))
+  if source_motion:
+   renderer=PhotoTexture(self,None,None,plan,original_reference=True)
+  else:
+   anchor=np.asarray(Image.open(self.ref_cache/'anchor.png').convert('RGB'))
+   renderer=PhotoTexture(self,anchor,np.load(self.ref_cache/'landmarks.npy'),plan,
+                         original_reference=reference.get('method')=='original_photo')
+  output.parent.mkdir(parents=True,exist_ok=True);pending=output.with_name(output.stem+'.pending.mp4');cmd=[str(FF),'-v','error','-y','-f','rawvideo','-pix_fmt','rgb24','-s','1080x1920','-r','30','-i','pipe:0','-ss',str(self.begin/30),'-i',str(self.audio)]
   cwd=output.parent
   if ass:
    import os
@@ -109,9 +156,13 @@ class Worker(Engine):
   if not renderer.counters['quiet_mouth_all_original'] or renderer.counters['original_texture_interior_max_difference']!=0:raise ValueError('原图唇纹或静音回位检查未通过，停止发布输出。')
   subprocess.run([str(FF),'-v','error','-xerror','-i',str(pending),'-f','null','-'],check=True);pending.replace(output);sl=slice(self.begin,self.last)
   write_provenance(output,self.audio,self.speech_activity['rms'][sl],self.speech_activity['peak'][sl],plan['opening'][sl],plan['width_ratio'][sl],plan['upper_raise'][sl],plan['protected'][sl],fps=30,mouth_scale=scale,extra={'begin_frame':self.begin,'transcript_phoneme_constraints_applied':True,'alignment':'per-input transcript verified and attention-aligned in FP32','timing_delay_frames':screen['delay_frames'],'mouth_scale':scale,'recipe':'photo-lip-speech-v2'})
-  save(output.with_suffix('.detail.json'),{'recipe':'photo-lip-speech-v2','job':str(self.path),'job_sha256':sha(self.path),'video_sha256':sha(output),'one_encode_per_output':True});save(output.with_suffix('.render.json'),{'frames':self.last-self.begin,'blink_start_seconds':[i/30 for i in self.blink_starts if self.begin<=i<self.last],'texture_check':renderer.counters,'screening':check,'reference':read(self.ref_cache/'reference.json'),'FP32':True,'head_motion':False,'body_motion':False,'human_review_required':True});save(self.path.with_name('制作结果.json'),{'status':'completed','output':str(output),'signature':self.job['signature'],'method':'photo-lip-speech-v2','human_review_required':True})
+  save(output.with_suffix('.detail.json'),{'recipe':'photo-lip-speech-v2','job':str(self.path),'job_sha256':sha(self.path),'video_sha256':sha(output),'one_encode_per_output':True});save(output.with_suffix('.render.json'),{'frames':self.last-self.begin,'blink_start_seconds':[i/30 for i in self.blink_starts if self.begin<=i<self.last],'texture_check':renderer.counters,'screening':check,'reference':reference,'mouth_motion':self.job.get('mouth_motion'),'FP32':True,'head_motion':False,'body_motion':False,'human_review_required':True});save(self.path.with_name('制作结果.json'),{'status':'completed','output':str(output),'signature':self.job['signature'],'method':'photo-lip-speech-v2','human_review_required':True})
 
 if __name__=='__main__':
- p=argparse.ArgumentParser();p.add_argument('--job',required=True);p.add_argument('--stage',required=True,choices=['predict','geometry','blink','reference','plan','encode']);p.add_argument('--output');p.add_argument('--ass');a=p.parse_args();worker=Worker(a.job)
- if a.stage=='encode':worker.encode(a.output,a.ass)
- else:getattr(worker,{'predict':'predict_stage','geometry':'geometry_stage','blink':'blink_stage','reference':'reference_stage','plan':'plan_stage'}[a.stage])()
+ p=argparse.ArgumentParser();p.add_argument('--job',required=True);p.add_argument('--stage',required=True,choices=['source-probe','predict','geometry','blink','reference','plan','encode']);p.add_argument('--output');p.add_argument('--ass');a=p.parse_args()
+ if a.stage=='source-probe':
+  probe_source_mouth(a.job)
+ else:
+  worker=Worker(a.job)
+  if a.stage=='encode':worker.encode(a.output,a.ass)
+  else:getattr(worker,{'predict':'predict_stage','geometry':'geometry_stage','blink':'blink_stage','reference':'reference_stage','plan':'plan_stage'}[a.stage])()
