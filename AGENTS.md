@@ -1,4 +1,4 @@
-# Local Media Studio 7.1
+# Local Media Studio 7.1.1
 
 This package is the English-layout, full-model-preload edition of the local offline audio and video workstation. Shipped package, program, model and configuration paths use ASCII filenames. GUI labels and names used by existing project documents may contain Chinese.
 
@@ -50,6 +50,12 @@ If startup preparation fails, the workbench stays closed and shows the reason, t
 
 - Quick creation and the two video tabs save the subtitle display choice. With subtitles disabled, automation can omit SRT and subtitle style from export and skips subtitle checks. Old projects with no choice still display subtitles. The recommended portrait engine still needs the transcript for lip timing.
 - In `detail_v2`, an explicitly selected mouth-reference image takes precedence. In automatic mode, confirmed visible teeth enable animation within the source mouth opening. If the photo fails that check, use the model-generated reference path. Existing masters can still be exported using their matching caches.
+
+## Output review
+
+Technical findings or an unfinished inspection can yield a saved video with status `review_needed`, with review notices and a report for manual playback. Check the task status and warnings even when the process exits successfully.
+
+Quick creation can finish with a photo-and-voice video after a portrait error or a plain video after a subtitle error when the source media is usable. Export and Save As carry review notices and copy valid lip-sync records under the destination filename.
 
 ## Development rules
 

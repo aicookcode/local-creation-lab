@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "7.1.0",
+  "version": "7.1.1",
   "description": "ZipVoice archive files and phoneme data are extracted and verified; integrity records are generated from pinned metadata in the manifest.",
   "voice_qwen": {
     "mmproj.gguf": "https://huggingface.co/mradermacher/Qwen3-TTS-12Hz-0.6B-Base-GGUF/resolve/main/Qwen3-TTS-12Hz-0.6B-Base.mmproj-Q8_0.gguf?download=true",

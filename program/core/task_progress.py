@@ -53,6 +53,8 @@ def status_from_log(line):
   try:return phase_label(json.loads(text.split(PREFIX,1)[1]).get('phase'))
   except (ValueError,TypeError,AttributeError):return '正在处理当前步骤'
  if '复用本项目' in text:return '正在复用已有口型缓存'
+ if text.startswith('成片已保存，有项目待复核'):return '成片已保存，有项目待复核。'
+ if text.startswith(('自动检查未能完成','口型检查记录无法复制')):return '成片待复核，正在整理检查结果。'
  if re.search(r'(?:^|\|\s)\d+(?:\.\d+)?%\s*',text):return '正在制作图片视频'
  if re.search(r'动作合成 \d+/\d+ 帧',text):return '正在合成动作与画面'
  if re.search(r'(?:^|\|\s)\d+/\d+ [\d.]+s',text):return '正在生成口型'
@@ -151,8 +153,8 @@ def export_copy(source,target,report=lambda line:None,sidecars=(),extra_files=()
    os.rename(pending,dst)
   except Exception:pending.unlink(missing_ok=True);raise
  if source.suffix.lower() in ('.mp4','.mov','.mkv'):
-  from portrait.speech_constraints import copy_provenance
-  copy_provenance(source,target)
+  from review_status import copy_video_review
+  copy_video_review(source,target,report)
  return target
 
 def guard_space(directory,required_bytes=0):

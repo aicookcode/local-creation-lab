@@ -11,6 +11,7 @@ import voice_store as voices
 import subtitle_layout as captions
 from portrait import config as portrait,service
 from task_progress import export_copy
+from review_status import copy_video_review,save_video_warnings,video_warnings
 
 FIELDS={
  'clone':{'name','engine','reference','transcript','start','duration','settings','tags','note'},
@@ -95,10 +96,11 @@ def check_subtitles(audio,path):
  return {'cues':len(cues),'seconds':duration}
 
 class TaskRunner:
- def __init__(self,task,path):
+ def __init__(self,task,path,*,best_effort=False):
   validate(task);self.task=task;self.base=Path(path).resolve().parent;name=re.sub(r'[<>:"/\\|?*\x00-\x1f]','-',str(task.get('name','AI任务')))[:35]
   self.project=PROJECTS/('AI-'+datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')+'-'+name);self.project.mkdir(parents=True)
-  self.results={};self.report={'schema':1,'status':'running','task':task,'project':str(self.project),'steps':[],'human_review_required':True};self.gui={'schema':2,'id':uuid.uuid4().hex,'name':name,'voice':{},'videos':{}}
+  self.best_effort=best_effort
+  self.results={};self.report={'schema':1,'status':'running','task':task,'project':str(self.project),'steps':[],'warnings':[],'human_review_required':True};self.gui={'schema':2,'id':uuid.uuid4().hex,'name':name,'voice':{},'videos':{}}
  def resolve(self,value):
   if isinstance(value,dict):return {k:self.resolve(v) for k,v in value.items()}
   if isinstance(value,list):return [self.resolve(v) for v in value]
@@ -114,14 +116,12 @@ class TaskRunner:
   if target.exists():
    if voices.sha256(source)==voices.sha256(target):
     if source.suffix.lower() in ('.mp4','.mov','.mkv'):
-     from portrait.speech_constraints import copy_provenance
-     copy_provenance(source,target)
+     copy_video_review(source,target,log)
     return target
    target=target.with_name(uuid.uuid4().hex[:8]+'-'+target.name)
   shutil.copy2(source,target)
   if source.suffix.lower() in ('.mp4','.mov','.mkv'):
-   from portrait.speech_constraints import copy_provenance
-   copy_provenance(source,target)
+   copy_video_review(source,target,log)
   return target
  def persist(self):
   voices.atomic_json(self.project/'AI执行结果.json',pack_paths(self.report));voices.atomic_json(self.project/'项目.json',pack_paths(self.gui))
@@ -142,8 +142,14 @@ class TaskRunner:
    entry,p,_=voices.get_voice(s['voice_id'],verify_models=False);text=s['text'] if s.get('text') else read_text(self.input(s['text_file']))
    if not isinstance(text,str) or not text.strip():raise ValueError('正文不能为空。')
    script=folder/'配音.txt';script.write_text(text.strip(),encoding='utf-8');audio=folder/'配音.wav'
-   run_process([py,'-X','utf8',CODE/'tts/local_voice.py','--voice-profile',voices.profile_path(entry['id']),'--profile-hash',entry['profile_sha256'],'--text-file',script,'--out',audio,'--segmentation',s.get('segmentation','auto')],folder/'生成.log')
-   return {'audio':str(audio),'text_file':str(script),'voice_id':entry['id']}
+   result={'audio':str(audio),'text_file':str(script),'voice_id':entry['id']}
+   try:
+    run_process([py,'-X','utf8',CODE/'tts/local_voice.py','--voice-profile',voices.profile_path(entry['id']),'--profile-hash',entry['profile_sha256'],'--text-file',script,'--out',audio,'--segmentation',s.get('segmentation','auto')],folder/'生成.log')
+   except (OSError,RuntimeError,ValueError) as exc:
+    if not self.best_effort or not audio.is_file() or portrait.duration_wav(audio)<=0:raise
+    log('配音文件已生成，但生成步骤有异常：'+str(exc))
+    result.update(status='review_needed',warnings=['配音已保留，请试听是否漏读或有异响。若不可用，请重新生成配音。'],error=str(exc))
+   return result
   if action=='photo':
    if not isinstance(s['images'],list) or not s['images']:raise ValueError('images须明确列出至少一张本次图片。')
    spec=importlib.util.spec_from_file_location('photo_api',CODE/'video/app.py');module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
@@ -160,6 +166,7 @@ class TaskRunner:
    settings={**portrait.defaults(),'engine':engine,'blink':s.get('blink'),'image':str(image),'template':str(target/'模板.json'),'regions':s.get('regions',{}),'framing':s['framing'],'reference_mode':'auto' if engine=='detail_v2' else ''};return {'settings':settings,'template':settings['template'],'image':str(image)}
   if action=='portrait':
    settings=s['settings'];audio=self.copy_input(s['audio'],folder);video=folder/'无字幕母版.mp4';preview=s.get('preview')
+   if not isinstance(settings,dict):raise ValueError('人物照片未完成准备，无法制作对口型画面。')
    if preview is not None:
     if not isinstance(preview,dict) or set(preview)!={'start','seconds'}:raise ValueError('preview须为start、seconds对象；完整视频不提交此字段。')
     start,length=preview['start'],preview['seconds']
@@ -171,7 +178,8 @@ class TaskRunner:
     reference=s.get('mouth_reference') or settings.get('mouth_reference')
     if reference:settings.update(reference_mode='photo',mouth_reference=str(self.copy_input(reference,folder,'张嘴参考'+Path(str(reference)).suffix)))
     else:settings.update(reference_mode='auto',mouth_reference='')
-   service.build(folder,audio,settings,video,log,preview=preview);return {'video':str(video),'audio':str(audio),'settings':settings}
+   result=service.build(folder,audio,settings,video,log,preview=preview)
+   return {'video':str(video),'audio':str(audio),'settings':settings,'warnings':result.get('warnings',[])}
   if action=='align' and s.get('method')=='verified':
    from verified_captions import make
    original_audio=self.input(s['audio']);audio=self.copy_input(s['audio'],folder);script=self.copy_input(s['text_file'],folder,'配套正文.txt');subs=make(audio,script,folder/'subtitle',log,source_audio=original_audio);check_subtitles(audio,subs);return {'subtitles':str(subs),'text_file':str(script),'audio':str(audio),'review':'draft'}
@@ -183,16 +191,18 @@ class TaskRunner:
   if action=='export':
    video=self.copy_input(s['video'],folder);audio=self.copy_input(s['audio'],folder);subs=self.copy_input(s['subtitles'],folder) if s.get('subtitles') else None
    metadata=self.input(s['video']).with_suffix('.detail.json')
-   if metadata.is_file():shutil.copy2(metadata,video.with_suffix('.detail.json'))
-   # A no-subtitle export is a direct copy of the verified mother video. It
-   # intentionally avoids ASR, SRT parsing, ASS layout and subtitle encoding.
    if subs is None:
     target=folder/'无字幕成片.mp4'
     shutil.copy2(video,target)
-    for suffix in ('.detail.json','.speech.json','.speech.npz'):
-     sidecar=video.with_suffix(suffix)
-     if sidecar.is_file():shutil.copy2(sidecar,target.with_suffix(suffix))
+    warnings=copy_video_review(video,target,log)
+    if metadata.is_file():
+     try:shutil.copy2(metadata,target.with_suffix('.detail.json'))
+     except OSError as exc:
+      log('无法复制母版生成记录：'+str(exc))
+      warnings.append('视频已保存。若之后需要加字幕，请从项目内原母版导出。')
+      save_video_warnings(target,warnings)
     return {'video':str(target),'audio':str(audio),'review':s['review'],'subtitles':None}
+   if metadata.is_file():shutil.copy2(metadata,video.with_suffix('.detail.json'))
    check_subtitles(audio,subs)
    # The same fixed-font and width checks used by the GUI are applied here.
    style=captions.load_style()
@@ -207,6 +217,7 @@ class TaskRunner:
    probe=subprocess.run([str(CODE/'video/ffmpeg.exe'),'-hide_banner','-i',str(video)],capture_output=True,text=True,encoding='utf-8',errors='replace',creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
    if not re.search(r'Video:.*\b1080x1920\b',probe.stderr):raise ValueError('字幕输出需要1080×1920母版。')
    target=folder/('待人工验收.mp4' if s['review']=='ai_checked' else '字幕成片.mp4');captions.prepare_ass(subs,target.with_suffix('.ass'),style);captions.burn(video,target.with_suffix('.ass'),target,progress=log)
+   save_video_warnings(target,video_warnings(video)+video_warnings(target))
    return {'video':str(target),'audio':str(audio),'subtitles':str(subs),'review':s['review']}
   if action=='check':
    video=self.copy_input(s['video'],folder);audio=self.copy_input(s['audio'],folder);subs=self.copy_input(s['subtitles'],folder) if s.get('subtitles') else None;script=self.copy_input(s['text_file'],folder) if s.get('text_file') else None
@@ -214,8 +225,7 @@ class TaskRunner:
    for suffix in ('.ass','.layout.json'):
     if original.with_suffix(suffix).is_file():shutil.copy2(original.with_suffix(suffix),video.with_suffix(suffix))
    result=service.inspect(folder,video,audio,subs,script,log)
-   if result['status']!='passed':raise ValueError('成片检查未通过，请查看：'+str(ROOT/result['report']))
-   return {'report':str(ROOT/result['report']),'status':result['status']}
+   return {'report':str(ROOT/result['report']),'status':result['status'],'warnings':result.get('warnings',[])}
   raise ValueError('未知操作')
  def update_gui(self,s,r):
   action=s['action'];route=s.get('route') or ('photo' if action=='photo' else 'portrait' if action=='portrait' else None)
@@ -226,28 +236,69 @@ class TaskRunner:
     data.update(audio=r['audio'],mother=r['video'],mother_signature=None)
     if action=='photo':data.update(pictures=r['pictures'],video=r['options'])
     else:data['portrait']=r['settings']
-   elif action=='align':data.update(subtitle=r['subtitles'],script=r['text_file'],source_text=read_text(r['text_file']),reviewed=False)
+   elif action=='align' and r.get('subtitles'):data.update(subtitle=r['subtitles'],script=r['text_file'],source_text=read_text(r['text_file']),reviewed=False)
    elif action=='export':
-    style=s['style'] if isinstance(s.get('style'),dict) else {};with_subtitles=bool(s.get('subtitles'))
+    style=s['style'] if isinstance(s.get('style'),dict) else {};with_subtitles=bool(r.get('subtitles'))
     data.update(final=r['video'],final_variant='subtitled' if with_subtitles else 'plain',show_subtitles=with_subtitles,reviewed=s['review']=='human_confirmed',output_style={'font_size':str(style.get('font_size',84)),'center_y':str(style.get('center_y',1200)),'width':str(style.get('width',810))} if with_subtitles else {})
     if r.get('exported'):data['published']=r['exported'];data['export_dir']=str(Path(r['exported']).parent)
    elif action=='check':data['portrait_report']=r['report']
  def run(self):
   from resource_gate import production_slot
   with production_slot('自动制作任务',log):return self._run_steps()
+ def execute_step(self,step,folder):
+  if self.best_effort and step['action']=='check' and not self.results.get('final',{}).get('subtitles'):
+   step={k:v for k,v in step.items() if k not in ('subtitles','text_file')}
+  try:
+   return self.execute(step,folder)
+  except (OSError,ValueError,RuntimeError,subprocess.SubprocessError) as exc:
+   if not self.best_effort:raise
+   if step['action']=='align':
+    warning='本次未能生成字幕，已继续保存无字幕视频。若需要字幕，请核对实际朗读的正文和配音，再单独生成字幕。'
+    result={'subtitles':None}
+   elif step['action']=='export' and step.get('subtitles'):
+    warning='字幕未能压入画面，已保存无字幕版本。请检查字幕格式、时间和排版，再重新导出。'
+    plain={k:v for k,v in step.items() if k not in ('subtitles','style')}
+    result=self.execute(plain,folder/'plain_fallback')
+   elif step['action']=='portrait_prepare':
+    warning='人物照片检测未完成，将尝试保存照片配音版。请检查是否为清晰、无遮挡的单人正脸。'
+    result={'image':str(self.input(step['image'])),'settings':None,'template':None}
+   elif step['action']=='portrait' and self.gui.get('quick',{}).get('images'):
+    warning='人物对口型未完成，已保存照片配音版。需要口播时，请核对照片、配音和正文后重做人物视频。'
+    image=self.gui['quick']['images'][0]
+    fallback={'action':'photo','audio':step['audio'],'images':[image],'seconds':3,
+              'transition':'智能匹配','motion':'静止','strength':'轻柔'}
+    frames=self.execute(fallback,folder/'photo_fallback')
+    result={'video':frames['video'],'audio':frames['audio'],
+            'settings':step.get('settings') or {'image':str(self.input(image))}}
+   else:raise
+   log(warning+' 原因：'+str(exc))
+   result.update(status='review_needed',warnings=[warning],error=str(exc))
+   return result
  def _run_steps(self):
   self.persist()
   for source in self.task['steps']:
    state={'id':source['id'],'action':source['action'],'status':'running'};self.report['steps'].append(state);self.persist()
    try:
-    step=self.resolve(source);result=self.execute(step,self.project/'执行步骤'/source['id']);self.results[source['id']]=result;state['result']=result
-    if step['action']=='check' and result.get('status')!='passed':raise RuntimeError('成片检查发现需要复核的项目，输出已保留。报告：'+str(result.get('report','请查看任务目录')))
+    step=self.resolve(source);result=self.execute_step(step,self.project/'执行步骤'/source['id']);self.results[source['id']]=result;state['result']=result
+    if step['action']=='export':
+     warnings=self.report['warnings']+result.get('warnings',[])+video_warnings(result['video'])
+     save_video_warnings(result['video'],warnings)
+     result['warnings']=list(dict.fromkeys(warnings))
     if self.task.get('output_dir') and step['action'] in ('speech','photo','portrait','export','voice_export'):
      directory=Path(self.task['output_dir']);directory=directory if directory.is_absolute() else self.base/directory
-     key='video' if 'video' in result else 'audio' if 'audio' in result else 'backup';src=Path(result[key]);result['exported']=str(export_copy(src,directory/source['id']/src.name,log,('.txt','.json','.audio-check.json') if key=='audio' else ('.ass','.layout.json') if key=='video' else ()))
-    state.update(status='completed');self.update_gui(step,result);self.persist()
+     key='video' if 'video' in result else 'audio' if 'audio' in result else 'backup';src=Path(result[key])
+     try:
+      result['exported']=str(export_copy(src,directory/source['id']/src.name,log,('.txt','.json','.audio-check.json') if key=='audio' else ('.ass','.layout.json') if key=='video' else ()))
+     except (OSError,ValueError) as exc:
+      warning='外部导出没有完成，任务目录已保留结果。请检查目标文件夹后另存。'
+      log(warning+' 原因：'+str(exc))
+      result.setdefault('warnings',[]).append(warning)
+    warnings=result.get('warnings',[])
+    if result.get('status')=='review_needed' and not warnings:warnings=['自动检查发现需要复核的项目，请查看报告。']
+    self.report['warnings']=list(dict.fromkeys(self.report['warnings']+warnings))
+    state.update(status='review_needed' if warnings else 'completed');self.update_gui(step,result);self.persist()
    except Exception as exc:state.update(status='failed',error=str(exc));self.report.update(status='failed',error=str(exc));self.persist();raise
-  self.report['status']='completed';self.persist();return self.report
+  self.report['status']='review_needed' if self.report['warnings'] else 'completed';self.persist();return self.report
 
 def diagnose():
  paths={'python':Path(CFG['main_python']),'qwen_runtime':ROOT/'runtime/qwen-tts/llama-tts.exe','tts_models':Path(CFG['model_home']),'subtitle_model':Path(CFG['subtitle_models']),'fonts':Path(CFG['fonts']),**service.prerequisites()}

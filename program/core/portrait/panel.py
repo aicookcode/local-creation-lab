@@ -262,6 +262,11 @@ class PortraitPanel:
    if preview:self.wb.data['portrait_preview']=str(output)
    else:self.wb.data.update(mother=str(output),mother_signature=result['signature'],final='');self.wb.reviewed.set(False)
    self.hint.set('短样已保存，请播放检查。' if preview else '人物母版已保存，请校对字幕并导出。');self.wb.status.set(self.hint.get())
+   if result.get('warnings'):
+    from review_status import review_message
+    self.hint.set('人物视频已保存，请带声音复核画面和嘴型。')
+    self.wb.status.set(self.hint.get())
+    messagebox.showwarning('人物视频已保存 · 待复核',review_message(result['warnings']),parent=self.wb.root)
   self.wb.job('制作人物'+('短样' if preview else '母版'),self.logged('人物制作',lambda log:service.build(project,audio,settings,output,log,clip)),done)
  def preview_selected(self):
   def do():

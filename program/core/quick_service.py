@@ -1,4 +1,4 @@
-"""Snapshot inputs, assemble supported API steps, and publish only checked output."""
+"""Snapshot inputs, run production, and save usable video with its review report."""
 from pathlib import Path
 import sys
 sys.path.insert(0,str(Path(__file__).resolve().parent/'tts'))
@@ -74,7 +74,7 @@ def execute(submission_file,log):
         code=proc.wait()
     if not result_file.is_file():raise RuntimeError('快捷制作中断，已保留输入与日志：'+str(area))
     result=library.read(result_file)
-    if code or result['status']!='completed':raise RuntimeError(result.get('error','快捷制作未完成')+'\n输入及日志：'+str(area))
+    if code or result['status'] not in ('completed','review_needed'):raise RuntimeError(result.get('error','快捷制作未完成')+'\n输入及日志：'+str(area))
     return result
 
 def publish_outputs(results,area,data,log):
@@ -84,7 +84,7 @@ def publish_outputs(results,area,data,log):
     def publish(root):
         destination=Path(root)/tag;destination.mkdir(parents=True)
         items=[(final,'视频.mp4'),(Path(results['speech']['audio']),'配音.wav'),(Path(results['speech']['text_file']),'正文.txt')]
-        if results.get('captions',{}).get('subtitles'):
+        if results['final'].get('subtitles') and results.get('captions',{}).get('subtitles'):
             items.append((Path(results['captions']['subtitles']),'字幕.srt'))
         for source,name in items:export_copy(source,destination/name,log,('.ass','.layout.json') if source==final else ())
         shutil.copytree(check.parent,destination/'检查报告')
@@ -121,16 +121,23 @@ def run_submission(path):
     try:
         live=library.voice_info(data['voice']['id'])
         if live['profile_sha256']!=data['voice']['profile_sha256']:raise ValueError('提交后音色档案发生变化，停止使用不一致参数。')
-        runner=automation.TaskRunner(data['task'],area/'执行任务.json');runner.gui['quick']=data['quick'];report=runner.run()
-        if report['status']!='completed' or runner.results['check']['status']!='passed':raise ValueError('制作或技术检查未通过，未发布完成结果。')
+        runner=automation.TaskRunner(data['task'],area/'执行任务.json',best_effort=True)
+        runner.gui['quick']=data['quick']
+        report=runner.run()
         # All media remains in the project; a failed external copy never destroys it.
         check=Path(runner.results['check']['report'])
-        publication={'version':'5.5','record':data['record'],'parameters':data['parameters'],'voice':data['voice'],'project':str(runner.project),'human_review_required':True,'output_dir':data.get('output_dir',''),'show_subtitles':bool(data.get('show_subtitles',True))}
+        show_subtitles=bool(runner.results['final'].get('subtitles'))
+        publication={'version':'5.5','record':data['record'],'parameters':data['parameters'],'voice':data['voice'],'project':str(runner.project),'human_review_required':True,'output_dir':data.get('output_dir',''),'show_subtitles':show_subtitles,'warnings':report['warnings']}
         destination,export_warning=publish_outputs(runner.results,area,publication,automation.log)
-        result={'status':'completed','video':str(destination/'视频.mp4'),'audio':str(destination/'配音.wav'),'subtitles':str(destination/'字幕.srt') if data.get('show_subtitles',True) else '', 'show_subtitles':bool(data.get('show_subtitles',True)),'report':str(destination/'检查报告'/check.name),'directory':str(destination),'project':str(runner.project),'usage_record':str(usage),'human_review_required':True}
+        result={'status':report['status'],'video':str(destination/'视频.mp4'),'audio':str(destination/'配音.wav'),'subtitles':str(destination/'字幕.srt') if show_subtitles else '', 'show_subtitles':show_subtitles,'report':str(destination/'检查报告'/check.name),'directory':str(destination),'project':str(runner.project),'usage_record':str(usage),'warnings':report['warnings'],'human_review_required':True}
         if export_warning:result['export_warning']=export_warning
         result['automatic_repairs']=automatic_repair_notes(runner.results)
-        runner.gui['quick']['last_result']=result;runner.persist();library.finish_usage(usage,'completed',result=result);library.atomic(area/'完成结果.json',result);automation.log('快捷制作完成，技术检查通过，等待人工验收。');return 0
+        runner.gui['quick']['last_result']=result
+        runner.persist()
+        library.finish_usage(usage,result['status'],result=result)
+        library.atomic(area/'完成结果.json',result)
+        automation.log('成片已保存，有项目待复核。' if result['status']=='review_needed' else '快捷制作完成，技术检查通过，等待人工验收。')
+        return 0
     except Exception as exc:
         import traceback
         traceback.print_exc();result={'status':'failed','error':str(exc),'project':str(runner.project) if runner else None,'submission':str(path),'usage_record':str(usage),'human_review_required':True};library.finish_usage(usage,'failed',result=result,error=str(exc));library.atomic(area/'完成结果.json',result);return 1

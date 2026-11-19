@@ -8,6 +8,7 @@ from ui_kit import ScrollPage,heading,section,field
 from studio_paths import USER_RESOURCES
 import settings_library as library
 import quick_service
+from review_status import review_message
 
 class QuickPanel:
     def __init__(self,manager,parent):
@@ -42,7 +43,7 @@ class QuickPanel:
         self.parameter_hint=tk.StringVar(value='尚未导入参数。');ttk.Label(box,textvariable=self.parameter_hint,wraplength=850,style='Good.TLabel').pack(anchor='w',pady=6)
         self.reference=tk.StringVar();row=self.row(box);ttk.Entry(row,textvariable=self.reference,state='readonly').pack(side='left',fill='x',expand=True);self.button(row,'可选：张嘴参考',self.choose_reference,side='left',padx=6);self.button(row,'清空参考',lambda:self.reference.set(''),side='left')
         ttk.Label(box,text='自动参考会先检查原图。清楚露齿时直接用原图嘴型，开口不超过照片。选用“用户张嘴参考”时请另交同人物、同角度照片。',wraplength=850,style='Muted.TLabel').pack(anchor='w')
-        box=section(p,'执行与结果','自动流程不会停下来要求逐步确认。检查发现异常时会停止并保留素材与日志；不会把异常当作完成。')
+        box=section(p,'执行与结果','发现需要复核的项目时，程序会尽量完成并保存视频，结束后集中提醒。')
         self.output=tk.StringVar();row=self.row(box);ttk.Entry(row,textvariable=self.output,state='readonly').pack(side='left',fill='x',expand=True);self.button(row,'选择输出目录',self.choose_output,side='left',padx=6);self.button(row,'保存在本次项目',lambda:self.output.set(''),side='left')
         row=self.row(box);self.button(row,'一键制作',self.start,primary=True,side='left');self.button(row,'清空本页输入',self.clear_clicked,side='left',padx=6)
         self.result_hint=tk.StringVar(value='尚未执行。');ttk.Label(box,textvariable=self.result_hint,wraplength=850,style='Good.TLabel').pack(anchor='w',pady=8)
@@ -76,7 +77,7 @@ class QuickPanel:
         self.record_tree.delete(*self.record_tree.get_children())
         for r in self.records.values():self.record_tree.insert('','end',iid=r['id'],text=r['name'],values=(library.SCOPES.get(r['scope'],'不可用'),r.get('created_at','')[:19].replace('T',' '),{'approved':'已确认','user':'手动保存','import':'导入','history':'使用记录'}.get(r.get('source'),r.get('source',''))))
         self.usages={r['id']:r for r in library.history()};self.history_tree.delete(*self.history_tree.get_children())
-        for r in self.usages.values():self.history_tree.insert('','end',iid=r['id'],text=r.get('label',''),values=({'running':'执行中 / 中断后待查','completed':'完成','failed':'失败'}.get(r['status'],r['status']),r['started_at'][:19].replace('T',' ')))
+        for r in self.usages.values():self.history_tree.insert('','end',iid=r['id'],text=r.get('label',''),values=({'running':'执行中 / 中断后待查','completed':'完成','review_needed':'成片待复核','failed':'失败'}.get(r['status'],r['status']),r['started_at'][:19].replace('T',' ')))
         self.voice_note()
     def show_library(self):self.manager.tab('quick');self.tabs.select(self.library_page);self.refresh()
     def display(self,data):self.details.configure(state='normal');self.details.delete('1.0','end');self.details.insert('1.0',json.dumps(data,ensure_ascii=False,indent=2));self.details.configure(state='disabled')
@@ -279,7 +280,17 @@ class QuickPanel:
         def done(result):
             note=('\n'+result['export_warning']) if result.get('export_warning') else ''
             if result.get('automatic_repairs'):note+='\n'+'\n'.join(result['automatic_repairs'])
-            self.last_result=result;kind='配音、视频、字幕与检查' if result.get('show_subtitles',True) else '配音、无字幕视频与检查';self.result_hint.set('制作完成，技术检查通过，请带声音验收。'+note+'\n'+result['directory']);self.manager.status.set('快捷制作完成，等待人工验收。'+note);self.root.bell();messagebox.showinfo('制作完成',kind+'已完成。'+note+'\n请带声音验收：\n'+result['directory'],parent=self.root)
+            self.last_result=result
+            self.root.bell()
+            if result['status']=='review_needed':
+                self.result_hint.set('成片已保存，有项目待复核。'+note+'\n'+result['directory'])
+                self.manager.status.set('成片已保存，请按检查报告复核。')
+                messagebox.showwarning('成片已保存 · 待复核',
+                    review_message(result.get('warnings',[]),result.get('report'))+note,parent=self.root)
+            else:
+                self.result_hint.set('制作完成，技术检查通过，请带声音验收。'+note+'\n'+result['directory'])
+                self.manager.status.set('快捷制作完成，等待人工验收。')
+                messagebox.showinfo('制作完成','请带声音验收成片。'+note+'\n'+result['directory'],parent=self.root)
         self.manager.run(self,'快捷制作',lambda:quick_service.execute(r,self.manager.log),done,serialized=False,parameters=None)
     def open_result(self,key):
         if not self.last_result:messagebox.showinfo('尚无结果','请先完成一次快捷制作。',parent=self.root);return

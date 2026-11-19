@@ -9,6 +9,7 @@ from portrait.speech_constraints import activity,constrain,audit,write_provenanc
 from portrait.photo_texture import PhotoTexture
 from portrait.original_mouth import visible_teeth
 from portrait.source_articulation import MODE as SOURCE_MOTION, build_plan as source_plan
+from review_status import save_video_warnings
 
 def probe_source_mouth(job):
  data=read(inside(job))
@@ -107,7 +108,7 @@ class Worker(Engine):
   best=max(lag_scores,key=lambda p:p[1]);zero=dict(lag_scores)[0];delay=best[0] if best[1]-zero>.03 else 0
   alignment=read(inside(self.job.get('alignment_cache',str(self.render_cache)))/'alignment.json');plan=constrain(self.pcm,16000,opening,ratio,raise_px,chars=alignment['chars'],delay_frames=int(delay),peak_opening=peak,max_step=3.8*mouth_scale,mouth_scale=mouth_scale);check=audit(self.pcm,16000,plan['opening'],plan['width_ratio'],plan['upper_raise'],protected=plan['protected'],mouth_scale=mouth_scale)
   save(self.render_cache/'screening.json',{'audit':check,'delay_frames':int(delay),'envelope_diagnostic':lag_scores,'mouth_scale':mouth_scale,'human_review_required':True})
-  if check['status']!='passed_constraints':raise ValueError('发声口型仍有可疑时间段，已保存筛查记录，停止编码；请检查原稿与配音。')
+  if check['status']=='failed':raise ValueError('口型轨迹不可用，请核对原稿与配音后重做。')
   dest=self.render_cache/'plan.npz';pending=dest.with_name('plan.pending.npz');np.savez(pending,**{k:v for k,v in plan.items() if isinstance(v,np.ndarray)});pending.replace(dest)
  def plan_source_stage(self):
   evidence=read(self.ref_cache/'source-mouth.json')
@@ -119,8 +120,8 @@ class Worker(Engine):
               protected=plan['protected'],mouth_scale=scale)
   save(self.render_cache/'screening.json',{'audit':check,'delay_frames':0,'mouth_scale':scale,
        'mouth_motion':SOURCE_MOTION,'source_opening_limit_px':opening,'human_review_required':True})
-  if check['status']!='passed_constraints':
-   raise ValueError('发声口型仍有可疑时间段，已保存筛查记录，停止编码；请检查原稿与配音。')
+  if check['status']=='failed':
+   raise ValueError('口型轨迹不可用，请核对原稿与配音后重做。')
   pending=self.render_cache/'plan.pending.npz'
   np.savez(pending,**plan)
   pending.replace(self.render_cache/'plan.npz')
@@ -128,7 +129,7 @@ class Worker(Engine):
   output=inside(output)
   if output.exists():raise FileExistsError('输出已存在，请另存。')
   plan=dict(np.load(self.render_cache/'plan.npz',allow_pickle=False));screen=read(self.render_cache/'screening.json');scale=screen['mouth_scale'];check=audit(self.pcm,16000,plan['opening'],plan['width_ratio'],plan['upper_raise'],protected=plan['protected'],mouth_scale=scale)
-  if check['status']!='passed_constraints':raise ValueError('轨迹复核未通过，不能编码成片。')
+  if check['status']=='failed':raise ValueError('口型轨迹不可用，请核对原稿与配音后重做。')
   source_motion=self.job.get('mouth_motion')==SOURCE_MOTION
   reference=read(self.ref_cache/('source-mouth.json' if source_motion else 'reference.json'))
   if source_motion:
@@ -153,10 +154,19 @@ class Worker(Engine):
      if (i-self.begin)%30==0:self.progress('编码原图唇纹与发声校准',i-self.begin+1,self.last-self.begin)
    finally:proc.stdin.close();code=proc.wait()
   if code:raise RuntimeError('编码失败，已保留输入和已验证缓存。')
-  if not renderer.counters['quiet_mouth_all_original'] or renderer.counters['original_texture_interior_max_difference']!=0:raise ValueError('原图唇纹或静音回位检查未通过，停止发布输出。')
+  warnings=[]
+  if check['status']=='review_needed':
+   warnings.append('发现可疑口型时段，请查看检查报告并带声音复核。若不同步，请核对正文与配音后重做人物母版。')
+  if not renderer.counters['quiet_mouth_all_original'] or renderer.counters['original_texture_interior_max_difference']!=0:
+   warnings.append('原图唇纹或停顿画面出现异常，请观察嘴部变形；若明显，请换一张清晰正脸照片后重做人物母版。')
   subprocess.run([str(FF),'-v','error','-xerror','-i',str(pending),'-f','null','-'],check=True);pending.replace(output);sl=slice(self.begin,self.last)
-  write_provenance(output,self.audio,self.speech_activity['rms'][sl],self.speech_activity['peak'][sl],plan['opening'][sl],plan['width_ratio'][sl],plan['upper_raise'][sl],plan['protected'][sl],fps=30,mouth_scale=scale,extra={'begin_frame':self.begin,'transcript_phoneme_constraints_applied':True,'alignment':'per-input transcript verified and attention-aligned in FP32','timing_delay_frames':screen['delay_frames'],'mouth_scale':scale,'recipe':'photo-lip-speech-v2'})
-  save(output.with_suffix('.detail.json'),{'recipe':'photo-lip-speech-v2','job':str(self.path),'job_sha256':sha(self.path),'video_sha256':sha(output),'one_encode_per_output':True});save(output.with_suffix('.render.json'),{'frames':self.last-self.begin,'blink_start_seconds':[i/30 for i in self.blink_starts if self.begin<=i<self.last],'texture_check':renderer.counters,'screening':check,'reference':reference,'mouth_motion':self.job.get('mouth_motion'),'FP32':True,'head_motion':False,'body_motion':False,'human_review_required':True});save(self.path.with_name('制作结果.json'),{'status':'completed','output':str(output),'signature':self.job['signature'],'method':'photo-lip-speech-v2','human_review_required':True})
+  try:
+   write_provenance(output,self.audio,self.speech_activity['rms'][sl],self.speech_activity['peak'][sl],plan['opening'][sl],plan['width_ratio'][sl],plan['upper_raise'][sl],plan['protected'][sl],fps=30,mouth_scale=scale,extra={'begin_frame':self.begin,'transcript_phoneme_constraints_applied':True,'alignment':'per-input transcript verified and attention-aligned in FP32','timing_delay_frames':screen['delay_frames'],'mouth_scale':scale,'recipe':'photo-lip-speech-v2'})
+  except OSError as exc:
+   print('口型检查记录无法保存：'+str(exc),flush=True)
+   warnings.append('无法保存口型检查记录，请带声音复核嘴型。')
+  save_video_warnings(output,warnings)
+  save(output.with_suffix('.detail.json'),{'recipe':'photo-lip-speech-v2','job':str(self.path),'job_sha256':sha(self.path),'video_sha256':sha(output),'one_encode_per_output':True});save(output.with_suffix('.render.json'),{'frames':self.last-self.begin,'blink_start_seconds':[i/30 for i in self.blink_starts if self.begin<=i<self.last],'texture_check':renderer.counters,'screening':check,'reference':reference,'mouth_motion':self.job.get('mouth_motion'),'FP32':True,'head_motion':False,'body_motion':False,'human_review_required':True});save(self.path.with_name('制作结果.json'),{'status':'completed','output':str(output),'signature':self.job['signature'],'method':'photo-lip-speech-v2','warnings':warnings,'human_review_required':True})
 
 if __name__=='__main__':
  p=argparse.ArgumentParser();p.add_argument('--job',required=True);p.add_argument('--stage',required=True,choices=['source-probe','predict','geometry','blink','reference','plan','encode']);p.add_argument('--output');p.add_argument('--ass');a=p.parse_args()

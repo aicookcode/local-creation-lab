@@ -89,10 +89,33 @@ def build(project,audio,settings,output,log=print,preview=None):
  result['signature']=sig;return result
 
 def inspect(project,video,audio,subtitle=None,script=None,log=print):
+ from xml.sax.saxutils import escape
+ from review_status import video_warnings
  project,video,audio=map(inside,(project,video,audio))
+ if not video.is_file():raise FileNotFoundError('没有可供检查的视频文件。')
  folder=project/'05-人物口播'/'检查'/datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f');folder.mkdir(parents=True)
  args=[PY,'-X','utf8','-u',ROOT/'core/portrait/check_output.py','--video',video,'--audio',audio,'--out-dir',folder]
  if subtitle:args+=['--subtitles',inside(subtitle)]
  if script:args+=['--script',inside(script)]
- call(args,log)
- return json.loads((folder/'检查结果.json').read_text(encoding='utf-8'))
+ report=folder/'检查结果.html'
+ result_file=folder/'检查结果.json'
+ try:
+  call(args,log)
+  result=json.loads(result_file.read_text(encoding='utf-8'))
+  if result.get('status') not in ('passed','review_needed') or not report.is_file():
+   raise ValueError('检查报告缺失或状态无效。')
+  return result
+ except (OSError,RuntimeError,ValueError,AttributeError) as exc:
+  warning='自动检查未能完成。请先播放确认能否使用，若画面、声音或字幕异常，请检查对应素材后重做。'
+  warnings=video_warnings(video)+[warning]
+  log('自动检查未能完成，视频已保留：'+str(exc))
+  result={'status':'review_needed','report':relative(report),'video':relative(video),
+          'warnings':warnings,'error':str(exc),'decode_ok':None}
+  src=Path(os.path.relpath(video,folder)).as_posix()
+  escaped_src=escape(src,{chr(34):"&quot;"})
+  items=''.join('<li>'+escape(item)+'</li>' for item in warnings)
+  report.write_text('<meta charset="utf-8"><title>成片待复核</title><h1>成片待复核</h1>'
+      +'<video controls width="360" src="'+escaped_src+'"></video>'
+      +'<ul>'+items+'</ul><h2>检查记录</h2><pre>'+escape(str(exc))+'</pre>',encoding='utf-8')
+  result_file.write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8')
+  return result

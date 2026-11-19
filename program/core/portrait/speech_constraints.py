@@ -126,8 +126,12 @@ def copy_provenance(source,target):
  from pathlib import Path
  import json,shutil
  source=Path(source);target=Path(target);meta=source.with_suffix('.speech.json')
- if not meta.is_file():return
- data=json.loads(meta.read_text(encoding='utf-8-sig'));arrays=source.with_suffix('.speech.npz')
+ arrays=source.with_suffix('.speech.npz')
+ if not meta.is_file():
+  if arrays.is_file():raise ValueError('输入视频缺少发声口型说明。')
+  return
+ data=json.loads(meta.read_text(encoding='utf-8-sig'))
+ if not isinstance(data,dict):raise ValueError('发声口型说明格式无效。')
  if data.get('arrays')!=arrays.name or not arrays.is_file() or data.get('arrays_sha256')!=file_sha(arrays) or data.get('video_sha256')!=file_sha(source):raise ValueError('输入视频的发声口型记录校验失败。')
  dest=target.with_suffix('.speech.npz');destmeta=target.with_suffix('.speech.json');data['arrays']=dest.name
  if dest.exists() and file_sha(dest)!=data['arrays_sha256']:raise ValueError('复制目标已有不同的发声口型记录。')

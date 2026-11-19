@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>本地影音创作工作台 7.1 使用说明</title>
+<title>本地影音创作工作台 7.1.1 使用说明</title>
 <style>
 body{margin:0;background:#f3f6fa;color:#26344d;font:16px/1.8 "Microsoft YaHei",sans-serif}
 main{max-width:900px;margin:24px auto;background:white;padding:clamp(18px,4vw,36px);border-radius:14px}
@@ -11,7 +11,7 @@ code{background:#eef3f8;padding:2px 5px;border-radius:4px;overflow-wrap:anywhere
 li{margin:7px 0}.note{background:#eef6ff;border-left:4px solid #2878d4;padding:10px 16px}
 </style>
 <main>
-<h1>本地影音创作工作台 7.1</h1>
+<h1>本地影音创作工作台 7.1.1</h1>
 <p>适用于 Windows 10/11 x64。首次准备需要联网，之后可离线制作。</p>
 <h2>启动</h2>
 <ol>
@@ -25,6 +25,9 @@ li{margin:7px 0}.note{background:#eef6ff;border-left:4px solid #2878d4;padding:1
 <h2>人物口播</h2>
 <p>在推荐方案中选择“自动准备”时，程序先检查照片是否清晰露齿。符合条件时，根据发音收合原图上下唇，最大开口以原图为限，尽量保留嘴角、牙齿纹理与唇形。闭嘴或牙齿不清晰时，程序会生成该照片的口腔参考。手动提交的同人物、同角度张嘴参考优先使用。</p>
 <p>已有母版需重新生成才能采用新版口型。可先生成短样，带声音复核闭唇、停顿和字幕。</p>
+<h2>成片待复核</h2>
+<p>成片检查发现疑点或未能完成时，工作台会保留视频和报告，并提示“成片已保存 · 待复核”。请带声音播放成片，按报告核对，再重做有问题的步骤。</p>
+<p>快捷制作中，如果人物口型生成失败但照片和配音可用，会尝试保存照片配音版。字幕识别或压制失败时，会尝试保存无字幕版。分步导出时，字幕压制失败也会尝试保存无字幕版。</p>
 <h2>文件位置</h2>
 <ul>
 <li><code>program/</code> 保存代码、内置资源、许可证和安装后的运行环境。</li>

@@ -2,6 +2,7 @@ from pathlib import Path
 import sys,json,argparse,subprocess,html
 ROOT=Path(__file__).resolve().parents[2];sys.path.insert(0,str(ROOT/'core'))
 from portrait.config import inside,relative,duration_wav
+from review_status import video_warnings
 import cv2,numpy as np
 from PIL import Image,ImageDraw
 p=argparse.ArgumentParser();p.add_argument('--video',required=True);p.add_argument('--audio',required=True);p.add_argument('--out-dir',required=True);p.add_argument('--subtitles');p.add_argument('--script');a=p.parse_args()
@@ -25,7 +26,7 @@ for k in range(3):
  start=max(0,min(reference_seconds-window,reference_seconds*(k+.5)/3-window/2));actual=pcm(video,start,window);reference=pcm(audio,start,window);n=min(len(actual),len(reference))
  corr=float(np.corrcoef(actual[:n],reference[:n])[0,1]) if n>10 and np.std(reference[:n])>1 else None
  parts.append({'section':k+1,'start_s':start,'sample_seconds':window,'correlation':corr})
-warnings=[];duration=i/fps;frame_adjustment=None
+warnings=video_warnings(video);duration=i/fps;frame_adjustment=None
 if decode.returncode or decode.stderr.strip():warnings.append('视频解码报告错误，请重新生成或查看日志。')
 if i!=total:
  if total-i==1 and abs(duration-reference_seconds)<=1/fps+.02:frame_adjustment='trimmed_one_trailing_geometry_frame'

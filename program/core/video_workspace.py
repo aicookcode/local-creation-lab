@@ -6,6 +6,7 @@ from PIL import Image
 from ui_kit import ScrollPage,heading,section,field,COLORS
 from portrait.panel import PortraitPanel
 from task_progress import export_copy
+from review_status import review_message,save_video_warnings,video_warnings
 
 class VideoWorkspace(WorkflowCore):
  def __init__(self,manager,parent,kind):
@@ -159,7 +160,14 @@ class VideoWorkspace(WorkflowCore):
    if not available(video):raise ValueError('请先在本流程导出成片。')
    subs=None if self.data.get('final_variant')=='plain' else self.data.get('subtitle');script=self.data.get('script') if subs else None
   except Exception as e:show_error('尚不能检查',str(e));return
-  def done(result):self.data['portrait_report']=str(portrait_config.inside(result['report']));self.status.set(self.label+'：检查完成，'+('基础指标通过，仍需人工观看。' if result['status']=='passed' else '存在需复核项目，请打开报告。'))
+  def done(result):
+   report=str(portrait_config.inside(result['report']))
+   self.data['portrait_report']=report
+   if result['status']=='passed':
+    self.status.set(self.label+'：基础指标通过，仍需人工观看。')
+   else:
+    self.status.set(self.label+'：成片已保留，请按检查报告复核。')
+    messagebox.showwarning('成片已保存 · 待复核',review_message(result.get('warnings',[]),report),parent=self.root)
   self.job('检查导出视频',lambda:portrait_service.inspect(self.project,video,audio,subs,script,self.log),done)
  def build_video(self):
   p=self.pages['video'];heading(p,'图片视频','提交本次配图，选择顺序、停留时长和运动方式。图像运动不会产生人物嘴型。')
@@ -264,8 +272,23 @@ class VideoWorkspace(WorkflowCore):
   output=self.project/'04-成片'/('字幕成片-'+stamp()+'.mp4')
   target=self.publish_target(output)
   def work():
-   captions.prepare_ass(subs,output.with_suffix('.ass'),style);captions.burn(video,output.with_suffix('.ass'),output,progress=self.log);return self.publish(output,target)
-  def done(result):self.data.update(final=str(output),final_variant='subtitled');self.publish_done(result)
+   try:
+    captions.prepare_ass(subs,output.with_suffix('.ass'),style)
+    captions.burn(video,output.with_suffix('.ass'),output,progress=self.log)
+   except (OSError,ValueError,RuntimeError,subprocess.SubprocessError) as exc:
+    self.log('字幕导出异常，保存无字幕版本：'+str(exc))
+    plain=output.with_name('plain-fallback-'+stamp()+'.mp4')
+    export_copy(video,plain,self.log)
+    warnings=video_warnings(plain)
+    warnings.append('字幕未能压入画面，已保存无字幕版本。请核对字幕格式、时间和排版后再导出。')
+    save_video_warnings(plain,warnings)
+    plain_target=target.with_name(plain.name) if target else None
+    return dict(self.publish(plain,plain_target),video=str(plain),variant='plain')
+   save_video_warnings(output,video_warnings(video)+video_warnings(output))
+   return dict(self.publish(output,target),video=str(output),variant='subtitled')
+  def done(result):
+   self.data.update(final=result['video'],final_variant=result['variant'])
+   self.publish_done(result)
   self.job('导出字幕成片',work,done)
 
  def choose_export_dir(self):
@@ -279,7 +302,13 @@ class VideoWorkspace(WorkflowCore):
   except Exception as exc:return {'published':'','error':str(exc)}
  def publish_done(self,result):
   self.data['published']=result.get('published','');self.status.set('成片已保存，可打开导出与检查查看文件。')
-  if result.get('error'):messagebox.showwarning('成片已保留，外部导出未完成',result['error']+'\n任务内成片仍完整保留，可使用“另存已有成片”重试。')
+  warnings=video_warnings(self.data['final'])
+  if result.get('error'):
+   warnings.append('外部导出未完成。请检查目标文件夹后使用“另存已有成片”。')
+   self.log(result['error'])
+  if warnings:
+   self.status.set('成片已保存，有项目待复核。')
+   messagebox.showwarning('成片已保存 · 待复核',review_message(warnings),parent=self.root)
  def save_final_as(self):
   if not self.idle():return
   source=Path(self.data.get('final',''))

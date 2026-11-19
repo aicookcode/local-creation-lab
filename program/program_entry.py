@@ -8,7 +8,7 @@ def prepare_models():
     import tkinter as tk
     from tkinter import ttk
     from model_manager import ensure_all
-    events=queue.Queue();root=tk.Tk();root.title('Local Media Studio 7.1 · 启动准备');root.geometry('620x190');root.resizable(False,False)
+    events=queue.Queue();root=tk.Tk();root.title('Local Media Studio 7.1.1 · 启动准备');root.geometry('620x190');root.resizable(False,False)
     root.protocol('WM_DELETE_WINDOW',lambda:root.destroy())
     frame=ttk.Frame(root,padding=24);frame.pack(fill='both',expand=True)
     ttk.Label(frame,text='正在准备本地模型',font=('Microsoft YaHei UI',15,'bold')).pack(anchor='w')
